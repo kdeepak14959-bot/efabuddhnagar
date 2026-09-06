@@ -170,21 +170,18 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
           updated_at: string
         }
         Insert: {
           created_at?: string
           full_name: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
           updated_at?: string
         }
         Update: {
           created_at?: string
           full_name?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
         }
         Relationships: []
@@ -271,11 +268,47 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
       is_assigned_teacher: { Args: { class_uuid: string }; Returns: boolean }
       owns_student: { Args: { student_uuid: string }; Returns: boolean }
