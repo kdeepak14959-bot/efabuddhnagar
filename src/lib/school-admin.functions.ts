@@ -8,19 +8,30 @@ const teacherInput = z.object({
   temporaryPassword: z.string().min(8).max(128),
 });
 
+const teacherUpdateInput = z.object({
+  id: z.string().uuid(),
+  fullName: z.string().trim().min(2).max(100),
+});
+
+const teacherDeleteInput = z.object({
+  id: z.string().uuid(),
+});
+
+async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
+  const { data: role, error } = await context.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", context.userId)
+    .maybeSingle();
+
+  if (error || role?.role !== "admin") throw new Response("Forbidden", { status: 403 });
+}
+
 export const createTeacherAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => teacherInput.parse(data))
   .handler(async ({ data, context }) => {
-    const { data: role, error: roleError } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId)
-      .maybeSingle();
-
-    if (roleError || role?.role !== "admin") {
-      throw new Response("Forbidden", { status: 403 });
-    }
+    await requirePrincipal(context);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -45,4 +56,28 @@ export const createTeacherAccount = createServerFn({ method: "POST" })
     if (assignmentError) throw new Error(assignmentError.message);
 
     return { id: teacherId, fullName: data.fullName };
+  });
+
+export const updateTeacherAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => teacherUpdateInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("profiles").update({ full_name: data.fullName }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteTeacherAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => teacherDeleteInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: classError } = await supabaseAdmin.from("classes").update({ teacher_id: null }).eq("teacher_id", data.id);
+    if (classError) throw new Error(classError.message);
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
