@@ -17,6 +17,14 @@ const teacherDeleteInput = z.object({
   id: z.string().uuid(),
 });
 
+const studentDeleteInput = z.object({
+  id: z.string().uuid(),
+});
+
+const classDeleteInput = z.object({
+  id: z.string().uuid(),
+});
+
 async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
   const { data: role, error } = await context.supabase
     .from("user_roles")
@@ -78,6 +86,36 @@ export const deleteTeacherAccount = createServerFn({ method: "POST" })
     const { error: classError } = await supabaseAdmin.from("classes").update({ teacher_id: null }).eq("teacher_id", data.id);
     if (classError) throw new Error(classError.message);
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteStudentRecord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => studentDeleteInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: attendanceError } = await supabaseAdmin.from("attendance_records").delete().eq("student_id", data.id);
+    if (attendanceError) throw new Error(attendanceError.message);
+    const { error: linkError } = await supabaseAdmin.from("parent_students").delete().eq("student_id", data.id);
+    if (linkError) throw new Error(linkError.message);
+    const { error } = await supabaseAdmin.from("students").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteClassRecord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => classDeleteInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: timetableError } = await supabaseAdmin.from("timetable_entries").delete().eq("class_id", data.id);
+    if (timetableError) throw new Error(timetableError.message);
+    const { error: studentError } = await supabaseAdmin.from("students").update({ class_id: null }).eq("class_id", data.id);
+    if (studentError) throw new Error(studentError.message);
+    const { error } = await supabaseAdmin.from("classes").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
