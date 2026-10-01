@@ -60,7 +60,8 @@ export const createTeacherAccount = createServerFn({ method: "POST" })
 
     const { error: assignmentError } = await supabaseAdmin
       .from("user_roles")
-      .upsert({ user_id: teacherId, role: "teacher" }, { onConflict: "user_id" });
+      .update({ role: "teacher" })
+      .eq("user_id", teacherId);
     if (assignmentError) throw new Error(assignmentError.message);
 
     return { id: teacherId, fullName: data.fullName };
