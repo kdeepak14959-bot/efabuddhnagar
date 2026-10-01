@@ -25,6 +25,10 @@ const classDeleteInput = z.object({
   id: z.string().uuid(),
 });
 
+const principalPasswordResetInput = z.object({
+  password: z.string().min(12).max(128),
+});
+
 async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
   const { data: role, error } = await context.supabase
     .from("user_roles")
@@ -118,5 +122,28 @@ export const deleteClassRecord = createServerFn({ method: "POST" })
     if (studentError) throw new Error(studentError.message);
     const { error } = await supabaseAdmin.from("classes").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const resetPrincipalPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => principalPasswordResetInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: principal, error: principalError } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+
+    if (principalError) throw new Error(principalError.message);
+    const principalUser = principal.users.find((user) => user.email?.toLowerCase() === "principal@school.com");
+    if (!principalUser) throw new Error("Principal account was not found.");
+
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(principalUser.id, {
+      password: data.password,
+      email_confirm: true,
+    });
+    if (updateError) throw new Error(updateError.message);
     return { ok: true };
   });
