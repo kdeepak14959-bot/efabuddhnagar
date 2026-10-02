@@ -27,16 +27,31 @@ function Dashboard() {
   const { role: requestedRole } = Route.useSearch(); const navigate = useNavigate(); const [profile, setProfile] = useState("School member"); const [role, setRole] = useState<Role | null>(null); const [section, setSection] = useState("Overview"); const [menu, setMenu] = useState(false); const [students, setStudents] = useState<Student[]>([]); const [classes, setClasses] = useState<SchoolClass[]>([]); const [entries, setEntries] = useState<TimetableEntry[]>([]); const [notices, setNotices] = useState<Notice[]>([]); const [attendance, setAttendance] = useState<AttendanceRecord[]>([]); const [teachers, setTeachers] = useState<Teacher[]>([]); const [teacherCount, setTeacherCount] = useState(0); const [currentUserId, setCurrentUserId] = useState("");
   const nav = useMemo<[LucideIcon, string][]>(() => role === "admin" ? [[LayoutDashboard, "Overview"], [Users, "Students"], [GraduationCap, "Teachers"], [School, "Classes"], [ClipboardCheck, "Attendance"], [Megaphone, "Notices"], [CalendarDays, "Timetable"]] : role === "teacher" ? [[LayoutDashboard, "Overview"], [School, "My classes"], [Users, "Students"], [ClipboardCheck, "Attendance"], [CalendarDays, "Timetable"], [Megaphone, "Notices"]] : [[LayoutDashboard, "Overview"], [GraduationCap, "My child"], [ClipboardCheck, "Attendance"], [CalendarDays, "Timetable"], [Megaphone, "Notices"]], [role]);
   const refresh = async (actualRole: Role, userId: string) => {
-    const classQuery = actualRole === "admin" ? supabase.from("classes").select("id,name,grade,teacher_id").order("grade") : actualRole === "teacher" ? supabase.from("classes").select("id,name,grade,teacher_id").eq("teacher_id", userId) : supabase.from("classes").select("id,name,grade,teacher_id");
-    const [classResult, noticeResult, studentResult, attendanceResult, teacherResult, teacherProfiles] = await Promise.all([classQuery, supabase.from("notices").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(5), actualRole === "parent" ? supabase.from("parent_students").select("students(id,full_name,admission_number,date_of_birth,class_id,classes(id,name,grade))").eq("parent_id", userId) : supabase.from("students").select("id,full_name,admission_number,date_of_birth,class_id,classes(id,name,grade)").order("full_name"), supabase.from("attendance_records").select("id,status,attendance_date").order("attendance_date", { ascending: false }).limit(30), actualRole === "admin" ? supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "teacher") : Promise.resolve({ count: 0 }), actualRole === "admin" ? supabase.from("user_roles").select("user_id,profiles(id,full_name)").eq("role", "teacher") : Promise.resolve({ data: [] })]);
-    const classRows = classResult.data ?? []; setClasses(classRows); setNotices(noticeResult.data ?? []); setTeacherCount(teacherResult.count ?? 0); setAttendance(attendanceResult.data ?? []);
+    const classQuery = actualRole === "admin"
+      ? supabase.from("classes").select("id,name,grade,teacher_id").order("grade")
+      : actualRole === "teacher"
+        ? supabase.from("classes").select("id,name,grade,teacher_id").eq("teacher_id", userId).order("grade")
+        : supabase.from("classes").select("id,name,grade,teacher_id").order("grade");
+    const studentQuery = actualRole === "parent"
+      ? supabase.from("parent_students").select("students(id,full_name,admission_number,date_of_birth,class_id,classes(id,name,grade))").eq("parent_id", userId)
+      : actualRole === "teacher"
+        ? supabase.from("students").select("id,full_name,admission_number,date_of_birth,class_id,classes!inner(id,name,grade,teacher_id)").eq("classes.teacher_id", userId).order("full_name")
+        : supabase.from("students").select("id,full_name,admission_number,date_of_birth,class_id,classes(id,name,grade)").order("full_name");
+    const timetableQuery = actualRole === "teacher"
+      ? supabase.from("timetable_entries").select("id,class_id,weekday,start_time,end_time,subject,room,classes!inner(id,name,grade,teacher_id)").eq("classes.teacher_id", userId).order("weekday").order("start_time")
+      : supabase.from("timetable_entries").select("id,class_id,weekday,start_time,end_time,subject,room,classes(id,name,grade)").order("weekday").order("start_time");
+    const [classResult, noticeResult, studentResult, attendanceResult, entryResult, teacherResult, teacherProfiles] = await Promise.all([classQuery, supabase.from("notices").select("id,title,body,published_at").order("published_at", { ascending: false }).limit(5), studentQuery, supabase.from("attendance_records").select("id,status,attendance_date").order("attendance_date", { ascending: false }).limit(30), timetableQuery, actualRole === "admin" ? supabase.from("user_roles").select("id", { count: "exact", head: true }).eq("role", "teacher") : Promise.resolve({ count: 0 }), actualRole === "admin" ? supabase.from("user_roles").select("user_id,profiles(id,full_name)").eq("role", "teacher") : Promise.resolve({ data: [] })]);
+    const classRows = classResult.data ?? [];
+    setClasses(classRows);
+    setNotices(noticeResult.data ?? []);
+    setTeacherCount(teacherResult.count ?? 0);
+    setAttendance(attendanceResult.data ?? []);
     const parentRows = (studentResult.data ?? []) as unknown as { students: Student | Student[] | null }[];
     const linkedStudents = parentRows.flatMap((row) => Array.isArray(row.students) ? row.students : row.students ? [row.students] : []);
     setStudents(actualRole === "parent" ? linkedStudents : (studentResult.data ?? []) as Student[]);
     const teacherRows = (teacherProfiles.data ?? []) as unknown as { profiles: Teacher | Teacher[] | null }[];
     setTeachers(teacherRows.flatMap((row) => Array.isArray(row.profiles) ? row.profiles : row.profiles ? [row.profiles] : []));
-    if (!classRows.length) { setEntries([]); return; }
-    const entryResult = await supabase.from("timetable_entries").select("id,class_id,weekday,start_time,end_time,subject,room,classes(id,name,grade)").order("weekday").order("start_time"); setEntries((entryResult.data ?? []) as TimetableEntry[]);
+    setEntries((entryResult.data ?? []) as TimetableEntry[]);
   };
   useEffect(() => { async function load() { const { data: { user } } = await supabase.auth.getUser(); if (!user) { await navigate({ to: "/" }); return; } const [{ data: p }, { data: r }] = await Promise.all([supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(), supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle()]); const actualRole = r?.role === "admin" || r?.role === "teacher" || r?.role === "parent" ? r.role : "parent"; if (requestedRole !== actualRole) { await navigate({ to: "/dashboard", search: { role: actualRole }, replace: true }); return; } setProfile(p?.full_name ?? "School member"); setCurrentUserId(user.id); setRole(actualRole); await refresh(actualRole, user.id); } load(); }, [navigate, requestedRole]);
   async function signOut() { await supabase.auth.signOut(); await navigate({ to: "/", replace: true }); }
