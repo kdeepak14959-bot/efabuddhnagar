@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791707370837,
+      "tag": "0000_fix_school_record_read_policy_recursion",
+      "breakpoints": true
+    }
+  ]
+}
