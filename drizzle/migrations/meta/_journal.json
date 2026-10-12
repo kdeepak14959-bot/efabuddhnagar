@@ -8,6 +8,13 @@
       "when": 1791707370837,
       "tag": "0000_fix_school_record_read_policy_recursion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791823690257,
+      "tag": "0001_add_school_settings",
+      "breakpoints": true
     }
   ]
 }
