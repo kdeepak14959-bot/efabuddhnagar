@@ -1,0 +1,66 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const schoolSettingsInput = z.object({
+  schoolName: z.string().trim().min(2).max(160),
+  logoUrl: z.string().url().nullable(),
+  address: z.string().trim().max(500),
+  phone: z.string().trim().max(40),
+  email: z.string().trim().email().or(z.literal("")),
+  principalName: z.string().trim().min(2).max(100),
+  affiliationBoard: z.string().trim().max(160),
+  academicSession: z.string().trim().min(4).max(40),
+  workingDays: z.array(z.string().min(3).max(12)).min(1).max(7),
+  openingTime: z.string().regex(/^\d{2}:\d{2}$/),
+  closingTime: z.string().regex(/^\d{2}:\d{2}$/),
+  themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+});
+
+async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
+  const { data: role, error } = await context.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", context.userId)
+    .maybeSingle();
+
+  if (error || role?.role !== "admin") throw new Response("Forbidden", { status: 403 });
+}
+
+export const saveSchoolSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => schoolSettingsInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: current, error: currentError } = await supabaseAdmin
+      .from("school_settings")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    if (currentError) throw new Error(currentError.message);
+
+    const payload = {
+      school_name: data.schoolName,
+      logo_url: data.logoUrl,
+      address: data.address,
+      phone: data.phone,
+      email: data.email,
+      principal_name: data.principalName,
+      affiliation_board: data.affiliationBoard,
+      academic_session: data.academicSession,
+      working_days: data.workingDays,
+      opening_time: data.openingTime,
+      closing_time: data.closingTime,
+      theme_color: data.themeColor,
+      updated_by: context.userId,
+    };
+
+    const result = current
+      ? await supabaseAdmin.from("school_settings").update(payload).eq("id", current.id)
+      : await supabaseAdmin.from("school_settings").insert(payload);
+    if (result.error) throw new Error(result.error.message);
+
+    return { ok: true };
+  });
