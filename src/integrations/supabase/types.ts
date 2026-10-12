@@ -186,6 +186,60 @@ export type Database = {
         }
         Relationships: []
       }
+      school_settings: {
+        Row: {
+          academic_session: string
+          address: string
+          affiliation_board: string
+          closing_time: string
+          email: string
+          id: string
+          logo_url: string | null
+          opening_time: string
+          phone: string
+          principal_name: string
+          school_name: string
+          theme_color: string
+          updated_at: string
+          updated_by: string | null
+          working_days: string[]
+        }
+        Insert: {
+          academic_session?: string
+          address?: string
+          affiliation_board?: string
+          closing_time?: string
+          email?: string
+          id?: string
+          logo_url?: string | null
+          opening_time?: string
+          phone?: string
+          principal_name?: string
+          school_name?: string
+          theme_color?: string
+          updated_at?: string
+          updated_by?: string | null
+          working_days?: string[]
+        }
+        Update: {
+          academic_session?: string
+          address?: string
+          affiliation_board?: string
+          closing_time?: string
+          email?: string
+          id?: string
+          logo_url?: string | null
+          opening_time?: string
+          phone?: string
+          principal_name?: string
+          school_name?: string
+          theme_color?: string
+          updated_at?: string
+          updated_by?: string | null
+          working_days?: string[]
+        }
+        Relationships: []
+      }
       students: {
         Row: {
           admission_number: string
