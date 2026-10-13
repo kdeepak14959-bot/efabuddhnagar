@@ -15,6 +15,13 @@
       "when": 1791823690257,
       "tag": "0001_add_school_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791853968494,
+      "tag": "0002_secure_school_branding_reads",
+      "breakpoints": true
     }
   ]
 }

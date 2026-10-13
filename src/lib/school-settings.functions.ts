@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requirePrincipal } from "./school-admin.functions";
 
 const schoolSettingsInput = z.object({
   schoolName: z.string().trim().min(2).max(160),
@@ -16,16 +17,6 @@ const schoolSettingsInput = z.object({
   closingTime: z.string().regex(/^\d{2}:\d{2}$/),
   themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
-
-async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
-  const { data: role, error } = await context.supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", context.userId)
-    .maybeSingle();
-
-  if (error || role?.role !== "admin") throw new Response("Forbidden", { status: 403 });
-}
 
 export const saveSchoolSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
