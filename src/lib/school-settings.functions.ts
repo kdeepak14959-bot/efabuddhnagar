@@ -18,7 +18,7 @@ const schoolSettingsInput = z.object({
 });
 
 async function requirePrincipal(context: {
-  supabase: { from: (table: "user_roles") => any };
+  supabase: { from: (table: "user_roles") => { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: { role: string } | null; error: unknown }> } } } };
   userId: string;
 }) {
   const { data: role, error } = await context.supabase
