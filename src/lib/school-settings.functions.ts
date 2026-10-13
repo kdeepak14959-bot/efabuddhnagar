@@ -17,7 +17,10 @@ const schoolSettingsInput = z.object({
   themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
-async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
+async function requirePrincipal(context: {
+  supabase: { from: (table: "user_roles") => any };
+  userId: string;
+}) {
   const { data: role, error } = await context.supabase
     .from("user_roles")
     .select("role")
