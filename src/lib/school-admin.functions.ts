@@ -29,7 +29,7 @@ const principalPasswordResetInput = z.object({
   password: z.string().min(12).max(128),
 });
 
-async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
+export async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
   const { data: role, error } = await context.supabase
     .from("user_roles")
     .select("role")
