@@ -1060,13 +1060,11 @@ function StudentsPage({
       setMessage("Enter the student's name and admission number.");
       return;
     }
-    const { error } = await supabase
-      .from("students")
-      .insert({
-        full_name: fullName.trim(),
-        admission_number: admissionNumber.trim(),
-        class_id: classId || null,
-      });
+    const { error } = await supabase.from("students").insert({
+      full_name: fullName.trim(),
+      admission_number: admissionNumber.trim(),
+      class_id: classId || null,
+    });
     if (error) {
       setMessage(error.message);
       return;
@@ -1662,16 +1660,14 @@ function TimetablePage({
       setMessage("Choose a class and enter a subject.");
       return;
     }
-    const { error } = await supabase
-      .from("timetable_entries")
-      .insert({
-        class_id: classId,
-        weekday: Number(weekday),
-        start_time: startTime,
-        end_time: endTime,
-        subject: subject.trim(),
-        room: room.trim() || null,
-      });
+    const { error } = await supabase.from("timetable_entries").insert({
+      class_id: classId,
+      weekday: Number(weekday),
+      start_time: startTime,
+      end_time: endTime,
+      subject: subject.trim(),
+      room: room.trim() || null,
+    });
     if (error) {
       setMessage(error.message);
       return;
