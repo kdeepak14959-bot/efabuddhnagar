@@ -25,6 +25,8 @@ export async function loadSchoolBranding() {
 export async function getSchoolLogoUrl(logoPath: string | null) {
   if (!logoPath) return null;
   const { supabase } = await import("@/integrations/supabase/client");
-  const { data } = await supabase.storage.from("school-branding").createSignedUrl(logoPath, 60 * 60);
+  const { data } = await supabase.storage
+    .from("school-branding")
+    .createSignedUrl(logoPath, 60 * 60);
   return data?.signedUrl ?? null;
 }
