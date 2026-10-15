@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,12 @@ function LoginPage() {
   const navigate = useNavigate(); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(false);
   const [branding, setBranding] = useState<SchoolBranding>(defaultSchoolBranding);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  useState(() => { void loadSchoolBranding().then(async (settings) => { setBranding(settings); setLogoUrl(await getSchoolLogoUrl(settings.logo_url)); }); });
+  useEffect(() => {
+    void loadSchoolBranding().then(async (settings) => {
+      setBranding(settings);
+      setLogoUrl(await getSchoolLogoUrl(settings.logo_url));
+    });
+  }, []);
   async function redirectByRole() { const { data: { user } } = await supabase.auth.getUser(); if (!user) return; const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle(); await navigate({ to: "/dashboard", search: { role: data?.role ?? "parent" } }); }
   async function signIn(event: React.FormEvent) { event.preventDefault(); setLoading(true); setMessage(""); const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) setMessage(error.message); else await redirectByRole(); setLoading(false); }
   async function reset() { if (!email) { setMessage("Enter your email address first."); return; } const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` }); setMessage(error ? error.message : "Password reset link sent. Please check your email."); }
