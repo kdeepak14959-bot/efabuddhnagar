@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database } from "@/integrations/supabase/types";
 
 const teacherInput = z.object({
   fullName: z.string().trim().min(2).max(100),
@@ -29,7 +31,7 @@ const principalPasswordResetInput = z.object({
   password: z.string().min(12).max(128),
 });
 
-export async function requirePrincipal(context: { supabase: { from: (table: "user_roles") => any }; userId: string }) {
+export async function requirePrincipal(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: role, error } = await context.supabase
     .from("user_roles")
     .select("role")
