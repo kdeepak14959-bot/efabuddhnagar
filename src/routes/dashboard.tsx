@@ -34,6 +34,12 @@ import { saveSchoolSettings } from "@/lib/school-settings.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  defaultSchoolBranding,
+  getSchoolLogoUrl,
+  loadSchoolBranding,
+  type SchoolBranding,
+} from "@/lib/school-branding";
 
 type Role = "admin" | "teacher" | "parent";
 type SchoolClass = { id: string; name: string; grade: string; teacher_id?: string | null };
@@ -121,6 +127,8 @@ function Dashboard() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherCount, setTeacherCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState("");
+  const [branding, setBranding] = useState<SchoolBranding>(defaultSchoolBranding);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const nav = useMemo<[LucideIcon, string][]>(
     () =>
       role === "admin"
@@ -273,6 +281,9 @@ function Dashboard() {
         await navigate({ to: "/dashboard", search: { role: actualRole }, replace: true });
         return;
       }
+      const schoolBranding = await loadSchoolBranding();
+      setBranding(schoolBranding);
+      setLogoUrl(await getSchoolLogoUrl(schoolBranding.logo_url));
       setProfile(p?.full_name ?? "School member");
       setCurrentUserId(user.id);
       setRole(actualRole);
@@ -302,7 +313,7 @@ function Dashboard() {
         <aside
           className={`${menu ? "fixed inset-y-0 left-0 z-30" : "hidden"} w-60 flex-col border-r border-white/60 bg-secondary/70 backdrop-blur-xl md:flex`}
         >
-          <Brand />
+          <Brand branding={branding} logoUrl={logoUrl} />
           <Nav items={nav} section={section} setSection={setSection} />
           <Profile name={profile} role={role} signOut={signOut} />
         </aside>
@@ -371,20 +382,17 @@ function Dashboard() {
     </main>
   );
 }
-function Brand() {
+function Brand({ branding, logoUrl }: { branding: SchoolBranding; logoUrl: string | null }) {
   return (
     <div className="flex items-center gap-3 px-5 py-6">
       <img
-        src={schoolMark}
-        alt="Riverstone Heights Academy crest"
+        src={logoUrl ?? schoolMark}
+        alt={`${branding.school_name} crest`}
         width={48}
         height={48}
         className="size-10 rounded-lg bg-card object-contain p-0.5"
       />
-      <div>
-        <p className="text-sm font-semibold">Riverstone Heights</p>
-        <p className="text-[11px] text-steel">Academy</p>
-      </div>
+      <p className="text-sm font-semibold leading-tight">{branding.school_name}</p>
     </div>
   );
 }
