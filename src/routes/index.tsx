@@ -17,14 +17,12 @@ export const Route = createFileRoute("/")({
       { title: "School Portal | Sign in" },
       {
         name: "description",
-        content:
-          "Secure school portal for families, teachers, and leadership.",
+        content: "Secure school portal for families, teachers, and leadership.",
       },
       { property: "og:title", content: "School Portal | Sign in" },
       {
         property: "og:description",
-        content:
-          "Secure school portal for families, teachers, and leadership.",
+        content: "Secure school portal for families, teachers, and leadership.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

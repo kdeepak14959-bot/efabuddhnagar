@@ -2,5 +2,57 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-export const Route = createFileRoute("/reset-password")({ head: () => ({ meta: [{ title: "Reset Password | School Portal" }, { name: "description", content: "Set a new password for your school portal account." }, { property: "og:title", content: "Reset Password | School Portal" }, { property: "og:description", content: "Set a new password for your school portal account." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }), component: ResetPassword });
-function ResetPassword() { const navigate = useNavigate(); const [password, setPassword] = useState(""); const [message, setMessage] = useState(""); async function submit(e: React.FormEvent) { e.preventDefault(); if (!window.location.hash.includes("type=recovery")) { setMessage("Open the password reset link from your email to continue."); return; } const { error } = await supabase.auth.updateUser({ password }); if (error) setMessage(error.message); else { setMessage("Password updated. You can now sign in."); setTimeout(() => navigate({ to: "/" }), 1200); } } return <main className="page-backdrop flex min-h-screen items-center justify-center p-5"><form onSubmit={submit} className="surface w-full max-w-md p-8"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-steel">School portal</p><h1 className="mt-2 font-serif text-3xl">Set a new password</h1><label className="mt-6 block text-sm font-medium">New password<input required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} type="password" className="mt-1.5 h-10 w-full rounded-md border bg-background px-3" /></label><Button className="mt-5 w-full">Update password</Button>{message && <p className="mt-4 text-sm text-clay">{message}</p>}</form></main>; }
+export const Route = createFileRoute("/reset-password")({
+  head: () => ({
+    meta: [
+      { title: "Reset Password | School Portal" },
+      { name: "description", content: "Set a new password for your school portal account." },
+      { property: "og:title", content: "Reset Password | School Portal" },
+      { property: "og:description", content: "Set a new password for your school portal account." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: ResetPassword,
+});
+function ResetPassword() {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!window.location.hash.includes("type=recovery")) {
+      setMessage("Open the password reset link from your email to continue.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) setMessage(error.message);
+    else {
+      setMessage("Password updated. You can now sign in.");
+      setTimeout(() => navigate({ to: "/" }), 1200);
+    }
+  }
+  return (
+    <main className="page-backdrop flex min-h-screen items-center justify-center p-5">
+      <form onSubmit={submit} className="surface w-full max-w-md p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-steel">
+          School portal
+        </p>
+        <h1 className="mt-2 font-serif text-3xl">Set a new password</h1>
+        <label className="mt-6 block text-sm font-medium">
+          New password
+          <input
+            required
+            minLength={8}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            className="mt-1.5 h-10 w-full rounded-md border bg-background px-3"
+          />
+        </label>
+        <Button className="mt-5 w-full">Update password</Button>
+        {message && <p className="mt-4 text-sm text-clay">{message}</p>}
+      </form>
+    </main>
+  );
+}
