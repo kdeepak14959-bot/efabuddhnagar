@@ -14,17 +14,17 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Riverstone Heights Academy | School Portal" },
+      { title: "School Portal | Sign in" },
       {
         name: "description",
         content:
-          "Secure school portal for Riverstone Heights Academy families, teachers, and leadership.",
+          "Secure school portal for families, teachers, and leadership.",
       },
-      { property: "og:title", content: "Riverstone Heights Academy | School Portal" },
+      { property: "og:title", content: "School Portal | Sign in" },
       {
         property: "og:description",
         content:
-          "Secure school portal for Riverstone Heights Academy families, teachers, and leadership.",
+          "Secure school portal for families, teachers, and leadership.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

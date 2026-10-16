@@ -98,12 +98,12 @@ export const Route = createFileRoute("/dashboard")({
   }),
   head: () => ({
     meta: [
-      { title: "School Dashboard | Riverstone Heights Academy" },
-      { name: "description", content: "Your Riverstone Heights Academy school portal dashboard." },
-      { property: "og:title", content: "School Dashboard | Riverstone Heights Academy" },
+      { title: "School Portal | Dashboard" },
+      { name: "description", content: "Your school portal dashboard." },
+      { property: "og:title", content: "School Portal | Dashboard" },
       {
         property: "og:description",
-        content: "Your Riverstone Heights Academy school portal dashboard.",
+        content: "Your school portal dashboard.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
