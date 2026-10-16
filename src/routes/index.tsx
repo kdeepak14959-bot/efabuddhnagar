@@ -4,10 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import schoolMark from "@/assets/riverstone-heights-academy-mark.png";
+import { getPublicSchoolBranding } from "@/lib/school-settings.functions";
 import {
   defaultSchoolBranding,
   getSchoolLogoUrl,
-  loadSchoolBranding,
   type SchoolBranding,
 } from "@/lib/school-branding";
 
@@ -40,7 +40,7 @@ function LoginPage() {
   const [branding, setBranding] = useState<SchoolBranding>(defaultSchoolBranding);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   useEffect(() => {
-    void loadSchoolBranding().then(async (settings) => {
+    void getPublicSchoolBranding().then(async (settings) => {
       setBranding(settings);
       setLogoUrl(await getSchoolLogoUrl(settings.logo_url));
     });

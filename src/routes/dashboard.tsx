@@ -30,14 +30,13 @@ import {
   deleteTeacherAccount,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
-import { saveSchoolSettings } from "@/lib/school-settings.functions";
+import { getPublicSchoolBranding, saveSchoolSettings } from "@/lib/school-settings.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   defaultSchoolBranding,
   getSchoolLogoUrl,
-  loadSchoolBranding,
   type SchoolBranding,
 } from "@/lib/school-branding";
 
@@ -281,7 +280,7 @@ function Dashboard() {
         await navigate({ to: "/dashboard", search: { role: actualRole }, replace: true });
         return;
       }
-      const schoolBranding = await loadSchoolBranding();
+      const schoolBranding = await getPublicSchoolBranding();
       setBranding(schoolBranding);
       setLogoUrl(await getSchoolLogoUrl(schoolBranding.logo_url));
       setProfile(p?.full_name ?? "School member");
