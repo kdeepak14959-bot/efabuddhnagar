@@ -4,27 +4,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import schoolMark from "@/assets/riverstone-heights-academy-mark.png";
+import { getPublicSchoolBranding } from "@/lib/school-settings.functions";
 import {
   defaultSchoolBranding,
   getSchoolLogoUrl,
-  loadSchoolBranding,
   type SchoolBranding,
 } from "@/lib/school-branding";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Riverstone Heights Academy | School Portal" },
+      { title: "School Portal | Sign in" },
       {
         name: "description",
-        content:
-          "Secure school portal for Riverstone Heights Academy families, teachers, and leadership.",
+        content: "Secure school portal for families, teachers, and leadership.",
       },
-      { property: "og:title", content: "Riverstone Heights Academy | School Portal" },
+      { property: "og:title", content: "School Portal | Sign in" },
       {
         property: "og:description",
-        content:
-          "Secure school portal for Riverstone Heights Academy families, teachers, and leadership.",
+        content: "Secure school portal for families, teachers, and leadership.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -42,7 +40,7 @@ function LoginPage() {
   const [branding, setBranding] = useState<SchoolBranding>(defaultSchoolBranding);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   useEffect(() => {
-    void loadSchoolBranding().then(async (settings) => {
+    void getPublicSchoolBranding().then(async (settings) => {
       setBranding(settings);
       setLogoUrl(await getSchoolLogoUrl(settings.logo_url));
     });

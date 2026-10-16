@@ -18,6 +18,19 @@ const schoolSettingsInput = z.object({
   themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
+export const getPublicSchoolBranding = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("school_settings")
+    .select("school_name,logo_url,theme_color")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (
+    data ?? { school_name: "Riverstone Heights Academy", logo_url: null, theme_color: "#264653" }
+  );
+});
+
 export const saveSchoolSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => schoolSettingsInput.parse(data))

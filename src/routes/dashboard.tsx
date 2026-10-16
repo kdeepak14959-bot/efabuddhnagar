@@ -30,14 +30,13 @@ import {
   deleteTeacherAccount,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
-import { saveSchoolSettings } from "@/lib/school-settings.functions";
+import { getPublicSchoolBranding, saveSchoolSettings } from "@/lib/school-settings.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   defaultSchoolBranding,
   getSchoolLogoUrl,
-  loadSchoolBranding,
   type SchoolBranding,
 } from "@/lib/school-branding";
 
@@ -98,12 +97,12 @@ export const Route = createFileRoute("/dashboard")({
   }),
   head: () => ({
     meta: [
-      { title: "School Dashboard | Riverstone Heights Academy" },
-      { name: "description", content: "Your Riverstone Heights Academy school portal dashboard." },
-      { property: "og:title", content: "School Dashboard | Riverstone Heights Academy" },
+      { title: "School Portal | Dashboard" },
+      { name: "description", content: "Your school portal dashboard." },
+      { property: "og:title", content: "School Portal | Dashboard" },
       {
         property: "og:description",
-        content: "Your Riverstone Heights Academy school portal dashboard.",
+        content: "Your school portal dashboard.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -281,7 +280,7 @@ function Dashboard() {
         await navigate({ to: "/dashboard", search: { role: actualRole }, replace: true });
         return;
       }
-      const schoolBranding = await loadSchoolBranding();
+      const schoolBranding = await getPublicSchoolBranding();
       setBranding(schoolBranding);
       setLogoUrl(await getSchoolLogoUrl(schoolBranding.logo_url));
       setProfile(p?.full_name ?? "School member");
