@@ -1,9 +1,8 @@
-import type { Database } from "@/integrations/supabase/types";
-
-export type SchoolBranding = Pick<
-  Database["public"]["Tables"]["school_settings"]["Row"],
-  "school_name" | "logo_url" | "theme_color"
->;
+export type SchoolBranding = {
+  school_name: string;
+  logo_url: string | null;
+  theme_color: string;
+};
 
 export const defaultSchoolBranding: SchoolBranding = {
   school_name: "Riverstone Heights Academy",
