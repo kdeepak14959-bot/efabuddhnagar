@@ -13,12 +13,13 @@ export const defaultSchoolBranding: SchoolBranding = {
 };
 
 export async function loadSchoolBranding() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("school_settings")
     .select("school_name,logo_url,theme_color")
     .limit(1)
     .maybeSingle();
 
+  if (error) throw new Error(error.message);
   return (data ?? defaultSchoolBranding) as SchoolBranding;
 }
 
