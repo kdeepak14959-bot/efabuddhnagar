@@ -1,4 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 export type SchoolBranding = Pick<
@@ -13,6 +12,7 @@ export const defaultSchoolBranding: SchoolBranding = {
 };
 
 export async function loadSchoolBranding() {
+  const { supabase } = await import("@/integrations/supabase/client");
   const { data, error } = await supabase
     .from("school_settings")
     .select("school_name,logo_url,theme_color")
@@ -25,6 +25,7 @@ export async function loadSchoolBranding() {
 
 export async function getSchoolLogoUrl(logoPath: string | null) {
   if (!logoPath) return null;
+  const { supabase } = await import("@/integrations/supabase/client");
   const { data } = await supabase.storage
     .from("school-branding")
     .createSignedUrl(logoPath, 60 * 60);
