@@ -26,7 +26,9 @@ export const getPublicSchoolBranding = createServerFn({ method: "GET" }).handler
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ?? { school_name: "Riverstone Heights Academy", logo_url: null, theme_color: "#264653" };
+  return (
+    data ?? { school_name: "Riverstone Heights Academy", logo_url: null, theme_color: "#264653" }
+  );
 });
 
 export const saveSchoolSettings = createServerFn({ method: "POST" })
