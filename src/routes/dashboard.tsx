@@ -280,9 +280,13 @@ function Dashboard() {
         await navigate({ to: "/dashboard", search: { role: actualRole }, replace: true });
         return;
       }
-      const schoolBranding = await getPublicSchoolBranding();
-      setBranding(schoolBranding);
-      setLogoUrl(await getSchoolLogoUrl(schoolBranding.logo_url));
+      try {
+        const schoolBranding = await getPublicSchoolBranding();
+        setBranding(schoolBranding);
+        setLogoUrl(await getSchoolLogoUrl(schoolBranding.logo_url));
+      } catch {
+        setLogoUrl(null);
+      }
       setProfile(p?.full_name ?? "School member");
       setCurrentUserId(user.id);
       setRole(actualRole);
@@ -392,6 +396,9 @@ function Brand({ branding, logoUrl }: { branding: SchoolBranding; logoUrl: strin
         className="size-10 rounded-lg bg-card object-contain p-0.5"
       />
       <p className="text-sm font-semibold leading-tight">{branding.school_name}</p>
+      {branding.principal_name && (
+        <p className="text-[11px] text-steel">Principal: {branding.principal_name}</p>
+      )}
     </div>
   );
 }

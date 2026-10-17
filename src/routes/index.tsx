@@ -40,10 +40,14 @@ function LoginPage() {
   const [branding, setBranding] = useState<SchoolBranding>(defaultSchoolBranding);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   useEffect(() => {
-    void getPublicSchoolBranding().then(async (settings) => {
-      setBranding(settings);
-      setLogoUrl(await getSchoolLogoUrl(settings.logo_url));
-    });
+    void getPublicSchoolBranding()
+      .then(async (settings) => {
+        setBranding(settings);
+        setLogoUrl(await getSchoolLogoUrl(settings.logo_url));
+      })
+      .catch(() => {
+        setLogoUrl(null);
+      });
   }, []);
   async function redirectByRole() {
     const {
