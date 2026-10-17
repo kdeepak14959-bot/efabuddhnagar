@@ -5,7 +5,13 @@ import { requirePrincipal } from "./school-admin.functions";
 
 const schoolSettingsInput = z.object({
   schoolName: z.string().trim().min(2).max(160),
-  logoUrl: z.string().url().nullable(),
+  logoUrl: z
+    .string()
+    .trim()
+    .url()
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
   address: z.string().trim().max(500),
   phone: z.string().trim().max(40),
   email: z.string().trim().email().or(z.literal("")),
