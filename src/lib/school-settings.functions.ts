@@ -8,10 +8,12 @@ const schoolSettingsInput = z.object({
   logoUrl: z
     .string()
     .trim()
-    .url()
-    .nullable()
     .optional()
-    .transform((value) => value || null),
+    .nullable()
+    .transform((value) => value || null)
+    .refine((value) => value === null || z.string().url().safeParse(value).success, {
+      message: "Logo URL must be valid.",
+    }),
   address: z.string().trim().max(500),
   phone: z.string().trim().max(40),
   email: z.string().trim().email().or(z.literal("")),
@@ -28,12 +30,17 @@ export const getPublicSchoolBranding = createServerFn({ method: "GET" }).handler
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("school_settings")
-    .select("school_name,logo_url,theme_color")
+    .select("school_name,logo_url,theme_color,principal_name")
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return (
-    data ?? { school_name: "Riverstone Heights Academy", logo_url: null, theme_color: "#264653" }
+    data ?? {
+      school_name: "Riverstone Heights Academy",
+      logo_url: null,
+      theme_color: "#264653",
+      principal_name: "",
+    }
   );
 });
 
@@ -72,5 +79,10 @@ export const saveSchoolSettings = createServerFn({ method: "POST" })
       : await supabaseAdmin.from("school_settings").insert(payload);
     if (result.error) throw new Error(result.error.message);
 
-    return { ok: true };
+    return {
+      school_name: payload.school_name,
+      logo_url: payload.logo_url,
+      theme_color: payload.theme_color,
+      principal_name: payload.principal_name,
+    };
   });

@@ -2,19 +2,21 @@ export type SchoolBranding = {
   school_name: string;
   logo_url: string | null;
   theme_color: string;
+  principal_name: string;
 };
 
 export const defaultSchoolBranding: SchoolBranding = {
   school_name: "Riverstone Heights Academy",
   logo_url: null,
   theme_color: "#264653",
+  principal_name: "",
 };
 
 export async function loadSchoolBranding() {
   const { supabase } = await import("@/integrations/supabase/client");
   const { data, error } = await supabase
     .from("school_settings")
-    .select("school_name,logo_url,theme_color")
+    .select("school_name,logo_url,theme_color,principal_name")
     .limit(1)
     .maybeSingle();
 
