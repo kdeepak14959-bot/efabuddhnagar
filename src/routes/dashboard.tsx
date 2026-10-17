@@ -781,6 +781,11 @@ function SchoolSettingsPage({ principalId }: { principalId: string }) {
     setWorkingDays((days) =>
       days.includes(day) ? days.filter((item) => item !== day) : [...days, day],
     );
+  const clearLogo = () => {
+    setLogoPath(null);
+    setLogoPreview(null);
+    setMessage("Logo removed. Save changes to apply it.");
+  };
   const cancel = () => {
     if (!saved) {
       setSchoolName("Riverstone Heights Academy");
@@ -799,6 +804,14 @@ function SchoolSettingsPage({ principalId }: { principalId: string }) {
     } else {
       setSchoolName(saved.school_name);
       setLogoPath(saved.logo_url);
+      if (saved.logo_url) {
+        void supabase.storage
+          .from("school-branding")
+          .createSignedUrl(saved.logo_url, 60 * 60)
+          .then(({ data }) => setLogoPreview(data?.signedUrl ?? null));
+      } else {
+        setLogoPreview(null);
+      }
       setAddress(saved.address);
       setPhone(saved.phone);
       setEmail(saved.email);
@@ -887,6 +900,19 @@ function SchoolSettingsPage({ principalId }: { principalId: string }) {
               Change logo
               <Input type="file" accept="image/*" className="sr-only" onChange={uploadLogo} />
             </label>
+            {logoPath && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={clearLogo}
+                disabled={saving}
+              >
+                <Trash2 className="size-4" />
+                Clear logo
+              </Button>
+            )}
             <p className="mt-2 text-xs text-steel">PNG, JPG, or WEBP · up to 2 MB</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
