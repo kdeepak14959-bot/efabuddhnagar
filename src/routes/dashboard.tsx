@@ -814,6 +814,10 @@ function SchoolSettingsPage({ principalId }: { principalId: string }) {
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (schoolName.trim().length < 2) {
+      setMessage("Enter a school name with at least 2 characters.");
+      return;
+    }
     if (!principalName.trim()) {
       setMessage("Enter the Principal's name.");
       return;
