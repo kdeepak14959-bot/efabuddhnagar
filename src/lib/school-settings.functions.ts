@@ -11,8 +11,8 @@ const schoolSettingsInput = z.object({
     .optional()
     .nullable()
     .transform((value) => value || null)
-    .refine((value) => value === null || z.string().url().safeParse(value).success, {
-      message: "Logo URL must be valid.",
+    .refine((value) => value === null || !value.includes("://") || z.string().url().safeParse(value).success, {
+      message: "Logo link must be valid.",
     }),
   address: z.string().trim().max(500),
   phone: z.string().trim().max(40),
