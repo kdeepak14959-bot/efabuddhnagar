@@ -79,6 +79,12 @@ export const saveSchoolSettings = createServerFn({ method: "POST" })
       : await supabaseAdmin.from("school_settings").insert(payload);
     if (result.error) throw new Error(result.error.message);
 
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update({ full_name: payload.principal_name })
+      .eq("id", context.userId);
+    if (profileError) throw new Error(profileError.message);
+
     return {
       school_name: payload.school_name,
       logo_url: payload.logo_url,
