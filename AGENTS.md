@@ -11,3 +11,4 @@
 
 - Principal-created teacher accounts are provisioned through an authenticated server function so passwords and privileged access never enter the browser bundle.
 - Principal-only school settings are stored as a single protected record; branding files live in private storage and are readable only by Principals.
+- School identity is read from the protected settings record, and saving the Principal name also synchronizes the signed-in Principal profile.
