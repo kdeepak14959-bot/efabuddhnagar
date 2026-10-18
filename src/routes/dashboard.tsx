@@ -284,10 +284,15 @@ function Dashboard() {
         const schoolBranding = await getPublicSchoolBranding();
         setBranding(schoolBranding);
         setLogoUrl(await getSchoolLogoUrl(schoolBranding.logo_url));
+        setProfile(
+          actualRole === "admin" && schoolBranding.principal_name
+            ? schoolBranding.principal_name
+            : (p?.full_name ?? "School member"),
+        );
       } catch {
         setLogoUrl(null);
+        setProfile(p?.full_name ?? "School member");
       }
-      setProfile(p?.full_name ?? "School member");
       setCurrentUserId(user.id);
       setRole(actualRole);
       await refresh(actualRole, user.id);
