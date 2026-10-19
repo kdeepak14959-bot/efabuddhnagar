@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Check,
   ClipboardCheck,
+  Download,
   GraduationCap,
   ImageUp,
   LayoutDashboard,
@@ -29,6 +30,7 @@ import {
   deleteStudentRecord,
   deleteTeacherAccount,
   saveClassAttendance,
+  getAttendanceReport,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
 import { getPublicSchoolBranding, saveSchoolSettings } from "@/lib/school-settings.functions";
@@ -730,11 +732,17 @@ function AttendanceRegister({
   refresh: () => Promise<void>;
 }) {
   const saveAttendance = useServerFn(saveClassAttendance);
+  const loadAttendanceReport = useServerFn(getAttendanceReport);
   const [classId, setClassId] = useState("");
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportClassId, setReportClassId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [statuses, setStatuses] = useState<Record<string, AttendanceRecord["status"]>>({});
+  const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const selectedClass = classes.find((schoolClass) => schoolClass.id === classId);
   const classStudents = students.filter((student) => student.class_id === classId);
 
@@ -762,6 +770,30 @@ function AttendanceRegister({
       active = false;
     };
   }, [attendanceDate, classId, students]);
+
+  useEffect(() => {
+    let active = true;
+    setReportLoading(true);
+    void loadAttendanceReport({
+      data: {
+        ...(reportClassId ? { classId: reportClassId } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+      },
+    })
+      .then((rows) => {
+        if (active) setReportRows(rows as AttendanceReportRow[]);
+      })
+      .catch((error) => {
+        if (active) setMessage(error instanceof Error ? error.message : "Could not load attendance records.");
+      })
+      .finally(() => {
+        if (active) setReportLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [endDate, loadAttendanceReport, reportClassId, startDate]);
 
   const chooseClass = (nextClassId: string) => {
     setClassId(nextClassId);
@@ -793,6 +825,30 @@ function AttendanceRegister({
     } finally {
       setSaving(false);
     }
+  };
+  const exportCsv = () => {
+    const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const csv = [
+      ["Date", "Class", "Student", "Admission number", "Status"],
+      ...reportRows.map((row) => [
+        row.attendanceDate,
+        row.className,
+        row.studentName,
+        row.admissionNumber,
+        row.status,
+      ]),
+    ]
+      .map((row) => row.map(escape).join(","))
+      .join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "attendance-report.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
   return (
     <section className="space-y-5">
@@ -876,6 +932,64 @@ function AttendanceRegister({
         ) : (
           <p className="p-8 text-center text-sm text-steel">No students are enrolled in this class yet.</p>
         )}
+      </section>
+      <section className="surface overflow-hidden">
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-ink/5 p-5">
+          <div>
+            <h3 className="text-sm font-semibold">Attendance records</h3>
+            <p className="mt-1 text-xs text-steel">Filter saved attendance by class and date range.</p>
+          </div>
+          {role === "admin" && (
+            <Button variant="outline" onClick={exportCsv} disabled={!reportRows.length || reportLoading}>
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+          )}
+        </div>
+        <div className="grid gap-4 border-b border-ink/5 p-5 sm:grid-cols-3">
+          <label className="text-xs font-medium">
+            Class
+            <select
+              value={reportClassId}
+              onChange={(event) => setReportClassId(event.target.value)}
+              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">All classes</option>
+              {classes.map((schoolClass) => (
+                <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.grade} · {schoolClass.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-medium">
+            From date
+            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1.5" />
+          </label>
+          <label className="text-xs font-medium">
+            To date
+            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1.5" />
+          </label>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-left text-sm">
+            <thead className="bg-secondary text-xs text-steel">
+              <tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Student</th><th className="px-5 py-3 font-medium">Class</th><th className="px-5 py-3 font-medium">Status</th></tr>
+            </thead>
+            <tbody className="divide-y divide-ink/5">
+              {reportLoading ? (
+                <tr><td colSpan={4} className="px-5 py-8 text-center text-steel">Loading attendance records…</td></tr>
+              ) : reportRows.length ? reportRows.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-5 py-3">{row.attendanceDate}</td>
+                  <td className="px-5 py-3"><p className="font-medium">{row.studentName}</p><p className="text-xs text-steel">{row.admissionNumber}</p></td>
+                  <td className="px-5 py-3">{row.className}</td>
+                  <td className="px-5 py-3 capitalize">{row.status}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4} className="px-5 py-8 text-center text-steel">No attendance records match these filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </section>
   );
