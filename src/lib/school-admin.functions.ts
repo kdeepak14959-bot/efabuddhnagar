@@ -31,6 +31,21 @@ const principalPasswordResetInput = z.object({
   password: z.string().min(12).max(128),
 });
 
+const attendanceStatus = z.enum(["present", "late", "absent"]);
+const saveAttendanceInput = z.object({
+  classId: z.string().uuid(),
+  attendanceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  records: z
+    .array(
+      z.object({
+        studentId: z.string().uuid(),
+        status: attendanceStatus,
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
 export async function requirePrincipal(context: {
   supabase: SupabaseClient<Database>;
   userId: string;
@@ -171,4 +186,52 @@ export const resetPrincipalPassword = createServerFn({ method: "POST" })
     });
     if (updateError) throw new Error(updateError.message);
     return { ok: true };
+  });
+
+export const saveClassAttendance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => saveAttendanceInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: role, error: roleError } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (roleError) throw new Error(roleError.message);
+    if (role?.role !== "admin" && role?.role !== "teacher") {
+      throw new Response("Forbidden", { status: 403 });
+    }
+
+    const { data: schoolClass, error: classError } = await context.supabase
+      .from("classes")
+      .select("id,teacher_id")
+      .eq("id", data.classId)
+      .maybeSingle();
+    if (classError) throw new Error(classError.message);
+    if (!schoolClass || (role.role === "teacher" && schoolClass.teacher_id !== context.userId)) {
+      throw new Response("Forbidden", { status: 403 });
+    }
+
+    const studentIds = data.records.map((record) => record.studentId);
+    const { data: classStudents, error: studentsError } = await context.supabase
+      .from("students")
+      .select("id")
+      .eq("class_id", data.classId)
+      .in("id", studentIds);
+    if (studentsError) throw new Error(studentsError.message);
+    if ((classStudents ?? []).length !== studentIds.length) {
+      throw new Error("Attendance can only be recorded for students in the selected class.");
+    }
+
+    const { error: saveError } = await context.supabase.from("attendance_records").upsert(
+      data.records.map((record) => ({
+        student_id: record.studentId,
+        attendance_date: data.attendanceDate,
+        status: record.status,
+        marked_by: context.userId,
+      })),
+      { onConflict: "student_id,attendance_date" },
+    );
+    if (saveError) throw new Error(saveError.message);
+    return { ok: true, recorded: data.records.length };
   });

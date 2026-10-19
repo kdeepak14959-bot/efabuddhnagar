@@ -28,6 +28,7 @@ import {
   deleteClassRecord,
   deleteStudentRecord,
   deleteTeacherAccount,
+  saveClassAttendance,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
 import { getPublicSchoolBranding, saveSchoolSettings } from "@/lib/school-settings.functions";
@@ -63,6 +64,7 @@ type TimetableEntry = {
 type Notice = { id: string; title: string; body: string; published_at: string };
 type AttendanceRecord = {
   id: string;
+  student_id?: string;
   status: "present" | "absent" | "late";
   attendance_date: string;
 };
@@ -686,7 +688,18 @@ function SectionView({
     return <StudentsPage role={role} students={students} classes={classes} refresh={refresh} />;
   if (section === "My child") return <StudentList students={students} />;
   if (section === "Notices") return <Notices notices={notices} />;
-  if (section === "Attendance") return <Attendance attendance={attendance} />;
+  if (section === "Attendance")
+    return role === "parent" ? (
+      <Attendance attendance={attendance} />
+    ) : (
+      <AttendanceRegister
+        role={role}
+        classes={classes}
+        students={students}
+        currentUserId={currentUserId}
+        refresh={refresh}
+      />
+    );
   if (section === "Timetable")
     return <TimetablePage role={role} classes={classes} entries={entries} refresh={refresh} />;
   if (section === "Teachers") return <TeachersPage teachers={teachers} refresh={refresh} />;
@@ -700,6 +713,170 @@ function SectionView({
       <p className="mt-2 text-sm text-steel">
         {roleNames[role]} access is ready for this school area.
       </p>
+    </section>
+  );
+}
+function AttendanceRegister({
+  role,
+  classes,
+  students,
+  currentUserId,
+  refresh,
+}: {
+  role: Exclude<Role, "parent">;
+  classes: SchoolClass[];
+  students: Student[];
+  currentUserId: string;
+  refresh: () => Promise<void>;
+}) {
+  const saveAttendance = useServerFn(saveClassAttendance);
+  const [classId, setClassId] = useState("");
+  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [statuses, setStatuses] = useState<Record<string, AttendanceRecord["status"]>>({});
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const selectedClass = classes.find((schoolClass) => schoolClass.id === classId);
+  const classStudents = students.filter((student) => student.class_id === classId);
+
+  useEffect(() => {
+    if (!classId && classes[0]) setClassId(classes[0].id);
+  }, [classId, classes]);
+
+  useEffect(() => {
+    if (!classId) return;
+    let active = true;
+    void supabase
+      .from("attendance_records")
+      .select("student_id,status")
+      .eq("attendance_date", attendanceDate)
+      .then(({ data, error }) => {
+        if (!active || error) return;
+        const nextStatuses: Record<string, AttendanceRecord["status"]> = {};
+        for (const student of classStudents) nextStatuses[student.id] = "present";
+        for (const record of data ?? []) {
+          if (nextStatuses[record.student_id]) nextStatuses[record.student_id] = record.status;
+        }
+        setStatuses(nextStatuses);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attendanceDate, classId, students]);
+
+  const chooseClass = (nextClassId: string) => {
+    setClassId(nextClassId);
+    setStatuses({});
+    setMessage("");
+  };
+  const save = async () => {
+    if (!classId || !classStudents.length) {
+      setMessage("Choose a class with enrolled students.");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      const result = await saveAttendance({
+        data: {
+          classId,
+          attendanceDate,
+          records: classStudents.map((student) => ({
+            studentId: student.id,
+            status: statuses[student.id] ?? "present",
+          })),
+        },
+      });
+      setMessage(`${result.recorded} attendance records saved.`);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save attendance.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="font-serif text-3xl">Student attendance</h2>
+          <p className="mt-1 text-sm text-steel">
+            {role === "admin" ? "Record attendance for any class." : "Record attendance for your assigned classes."}
+          </p>
+        </div>
+        <Button onClick={save} disabled={saving || !classStudents.length}>
+          <Check className="size-4" />
+          {saving ? "Saving…" : "Save attendance"}
+        </Button>
+      </div>
+      <div className="surface grid gap-4 p-5 sm:grid-cols-2">
+        <label className="text-xs font-medium">
+          Class
+          <select
+            value={classId}
+            onChange={(event) => chooseClass(event.target.value)}
+            className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            {classes.length ? (
+              classes.map((schoolClass) => (
+                <option key={schoolClass.id} value={schoolClass.id}>
+                  {schoolClass.grade} · {schoolClass.name}
+                </option>
+              ))
+            ) : (
+              <option value="">No classes assigned</option>
+            )}
+          </select>
+        </label>
+        <label className="text-xs font-medium">
+          Attendance date
+          <Input
+            type="date"
+            value={attendanceDate}
+            onChange={(event) => setAttendanceDate(event.target.value)}
+            className="mt-1.5"
+          />
+        </label>
+      </div>
+      <section className="surface overflow-hidden">
+        <div className="flex items-center justify-between border-b border-ink/5 p-5">
+          <div>
+            <h3 className="text-sm font-semibold">{selectedClass ? `${selectedClass.grade} · ${selectedClass.name}` : "Choose a class"}</h3>
+            <p className="mt-1 text-xs text-steel">{classStudents.length} enrolled students</p>
+          </div>
+          <p role="status" className="text-sm text-steel">{message}</p>
+        </div>
+        {classStudents.length ? (
+          <div className="divide-y divide-ink/5">
+            {classStudents.map((student) => {
+              const status = statuses[student.id] ?? "present";
+              return (
+                <div key={student.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{student.full_name}</p>
+                    <p className="text-xs text-steel">{student.admission_number}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 rounded-md bg-secondary p-1">
+                    {(["present", "late", "absent"] as const).map((value) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        size="sm"
+                        variant={status === value ? "default" : "ghost"}
+                        className="capitalize"
+                        onClick={() => setStatuses((current) => ({ ...current, [student.id]: value }))}
+                      >
+                        {value}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="p-8 text-center text-sm text-steel">No students are enrolled in this class yet.</p>
+        )}
+      </section>
     </section>
   );
 }
