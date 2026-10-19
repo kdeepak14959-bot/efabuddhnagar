@@ -46,6 +46,12 @@ const saveAttendanceInput = z.object({
     .max(500),
 });
 
+const attendanceReportInput = z.object({
+  classId: z.string().uuid().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 export async function requirePrincipal(context: {
   supabase: SupabaseClient<Database>;
   userId: string;
@@ -234,4 +240,50 @@ export const saveClassAttendance = createServerFn({ method: "POST" })
     );
     if (saveError) throw new Error(saveError.message);
     return { ok: true, recorded: data.records.length };
+  });
+
+export const getAttendanceReport = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => attendanceReportInput.parse(data))
+  .handler(async ({ data, context }) => {
+    if (data.startDate && data.endDate && data.startDate > data.endDate) {
+      throw new Error("The start date must be before the end date.");
+    }
+
+    const { data: role, error: roleError } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (roleError) throw new Error(roleError.message);
+    if (role?.role !== "admin" && role?.role !== "teacher") {
+      throw new Response("Forbidden", { status: 403 });
+    }
+
+    let query = context.supabase
+      .from("attendance_records")
+      .select("id,attendance_date,status,students!inner(id,full_name,admission_number,class_id,classes!inner(id,name,grade,teacher_id))")
+      .order("attendance_date", { ascending: false });
+
+    if (data.classId) query = query.eq("students.class_id", data.classId);
+    if (data.startDate) query = query.gte("attendance_date", data.startDate);
+    if (data.endDate) query = query.lte("attendance_date", data.endDate);
+    if (role.role === "teacher") query = query.eq("students.classes.teacher_id", context.userId);
+
+    const { data: records, error } = await query;
+    if (error) throw new Error(error.message);
+
+    return (records ?? []).flatMap((record) => {
+      const student = record.students;
+      const schoolClass = Array.isArray(student?.classes) ? student.classes[0] : student?.classes;
+      if (!student || !schoolClass) return [];
+      return [{
+        id: record.id,
+        attendanceDate: record.attendance_date,
+        status: record.status,
+        studentName: student.full_name,
+        admissionNumber: student.admission_number,
+        className: `${schoolClass.grade} · ${schoolClass.name}`,
+      }];
+    });
   });
