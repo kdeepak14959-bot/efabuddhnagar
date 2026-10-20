@@ -779,6 +779,26 @@ function AttendanceRegister({
     };
   }, [attendanceDate, classId, students]);
 
+  const loadReport = async () => {
+    setReportLoading(true);
+    setMessage("");
+    try {
+      const rows = await loadAttendanceReport({
+        data: {
+          ...(reportClassId ? { classId: reportClassId } : {}),
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        },
+      });
+      setReportRows(rows as AttendanceReportRow[]);
+    } catch (error) {
+      setReportRows([]);
+      setMessage(error instanceof Error ? error.message : "Could not load attendance records.");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     setReportLoading(true);
@@ -792,8 +812,8 @@ function AttendanceRegister({
       .then((rows) => {
         if (active) setReportRows(rows as AttendanceReportRow[]);
       })
-      .catch((error) => {
-        if (active) setMessage(error instanceof Error ? error.message : "Could not load attendance records.");
+      .catch(() => {
+        if (active) setReportRows([]);
       })
       .finally(() => {
         if (active) setReportLoading(false);
@@ -801,7 +821,7 @@ function AttendanceRegister({
     return () => {
       active = false;
     };
-  }, [endDate, loadAttendanceReport, reportClassId, startDate]);
+  }, [endDate, reportClassId, startDate]);
 
   const chooseClass = (nextClassId: string) => {
     setClassId(nextClassId);
@@ -947,12 +967,17 @@ function AttendanceRegister({
             <h3 className="text-sm font-semibold">Attendance records</h3>
             <p className="mt-1 text-xs text-steel">Filter saved attendance by class and date range.</p>
           </div>
-          {role === "admin" && (
-            <Button variant="outline" onClick={exportCsv} disabled={!reportRows.length || reportLoading}>
-              <Download className="size-4" />
-              Export CSV
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={loadReport} disabled={reportLoading}>
+              {reportLoading ? "Loading…" : "Apply filters"}
             </Button>
-          )}
+            {role === "admin" && (
+              <Button variant="outline" onClick={exportCsv} disabled={!reportRows.length || reportLoading}>
+                <Download className="size-4" />
+                Export CSV
+              </Button>
+            )}
+          </div>
         </div>
         <div className="grid gap-4 border-b border-ink/5 p-5 sm:grid-cols-3">
           <label className="text-xs font-medium">
