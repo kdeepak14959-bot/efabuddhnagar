@@ -793,7 +793,10 @@ function AttendanceRegister({
         if (active) setReportRows(rows as AttendanceReportRow[]);
       })
       .catch((error) => {
-        if (active) setMessage(error instanceof Error ? error.message : "Could not load attendance records.");
+        if (active) {
+          setReportRows([]);
+          setMessage(error instanceof Error ? error.message : "Could not load attendance records.");
+        }
       })
       .finally(() => {
         if (active) setReportLoading(false);
@@ -801,7 +804,7 @@ function AttendanceRegister({
     return () => {
       active = false;
     };
-  }, [endDate, loadAttendanceReport, reportClassId, startDate]);
+  }, [endDate, reportClassId, startDate]);
 
   const chooseClass = (nextClassId: string) => {
     setClassId(nextClassId);
