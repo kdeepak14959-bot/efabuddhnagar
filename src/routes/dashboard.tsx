@@ -70,6 +70,14 @@ type AttendanceRecord = {
   status: "present" | "absent" | "late";
   attendance_date: string;
 };
+type AttendanceReportRow = {
+  id: string;
+  attendanceDate: string;
+  status: "present" | "absent" | "late";
+  studentName: string;
+  admissionNumber: string;
+  className: string;
+};
 type Teacher = { id: string; full_name: string };
 type SchoolSettings = {
   id: string;
