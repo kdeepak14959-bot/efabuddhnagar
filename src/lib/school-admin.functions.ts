@@ -52,6 +52,11 @@ const attendanceReportInput = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+const attendanceSummaryInput = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 export async function requirePrincipal(context: {
   supabase: SupabaseClient<Database>;
   userId: string;
@@ -286,4 +291,52 @@ export const getAttendanceReport = createServerFn({ method: "POST" })
         className: `${schoolClass.grade} · ${schoolClass.name}`,
       }];
     });
+  });
+
+export const getAttendanceSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => attendanceSummaryInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    if (data.startDate && data.endDate && data.startDate > data.endDate) {
+      throw new Error("The start date must be before the end date.");
+    }
+
+    let query = context.supabase
+      .from("attendance_records")
+      .select("attendance_date,status,students!inner(class_id,classes!inner(id,name,grade))")
+      .order("attendance_date");
+    if (data.startDate) query = query.gte("attendance_date", data.startDate);
+    if (data.endDate) query = query.lte("attendance_date", data.endDate);
+
+    const { data: records, error } = await query;
+    if (error) throw new Error(error.message);
+
+    const daily = new Map<string, { date: string; present: number; late: number; absent: number }>();
+    const byClass = new Map<string, { className: string; present: number; late: number; absent: number }>();
+    for (const record of records ?? []) {
+      const student = record.students;
+      const schoolClass = Array.isArray(student?.classes) ? student.classes[0] : student?.classes;
+      if (!schoolClass) continue;
+      const dailyItem = daily.get(record.attendance_date) ?? {
+        date: record.attendance_date,
+        present: 0,
+        late: 0,
+        absent: 0,
+      };
+      const classItem = byClass.get(schoolClass.id) ?? {
+        className: `${schoolClass.grade} · ${schoolClass.name}`,
+        present: 0,
+        late: 0,
+        absent: 0,
+      };
+      dailyItem[record.status] += 1;
+      classItem[record.status] += 1;
+      daily.set(record.attendance_date, dailyItem);
+      byClass.set(schoolClass.id, classItem);
+    }
+    return {
+      daily: Array.from(daily.values()),
+      classes: Array.from(byClass.values()).sort((a, b) => a.className.localeCompare(b.className)),
+    };
   });

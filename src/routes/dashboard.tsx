@@ -2,6 +2,18 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   BookOpen,
   CalendarDays,
   Check,
@@ -31,6 +43,7 @@ import {
   deleteTeacherAccount,
   saveClassAttendance,
   getAttendanceReport,
+  getAttendanceSummary,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
 import { getPublicSchoolBranding, saveSchoolSettings } from "@/lib/school-settings.functions";
@@ -77,6 +90,10 @@ type AttendanceReportRow = {
   studentName: string;
   admissionNumber: string;
   className: string;
+};
+type AttendanceSummary = {
+  daily: { date: string; present: number; late: number; absent: number }[];
+  classes: { className: string; present: number; late: number; absent: number }[];
 };
 type Teacher = { id: string; full_name: string };
 type SchoolSettings = {
@@ -741,6 +758,7 @@ function AttendanceRegister({
 }) {
   const saveAttendance = useServerFn(saveClassAttendance);
   const loadAttendanceReport = useServerFn(getAttendanceReport);
+  const loadAttendanceSummary = useServerFn(getAttendanceSummary);
   const [classId, setClassId] = useState("");
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportClassId, setReportClassId] = useState("");
@@ -751,6 +769,8 @@ function AttendanceRegister({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [summary, setSummary] = useState<AttendanceSummary>({ daily: [], classes: [] });
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const selectedClass = classes.find((schoolClass) => schoolClass.id === classId);
   const classStudents = students.filter((student) => student.class_id === classId);
 
@@ -878,6 +898,26 @@ function AttendanceRegister({
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
+  const loadSummary = async () => {
+    setSummaryLoading(true);
+    try {
+      setSummary(await loadAttendanceSummary({
+        data: {
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        },
+      }) as AttendanceSummary);
+    } catch (error) {
+      setSummary({ daily: [], classes: [] });
+      setMessage(error instanceof Error ? error.message : "Could not load the attendance summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (role !== "admin") return;
+    void loadSummary();
+  }, [startDate, endDate]);
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -961,6 +1001,9 @@ function AttendanceRegister({
           <p className="p-8 text-center text-sm text-steel">No students are enrolled in this class yet.</p>
         )}
       </section>
+      {role === "admin" && (
+        <AttendanceSummaryPanel summary={summary} loading={summaryLoading} onRefresh={loadSummary} />
+      )}
       <section className="surface overflow-hidden">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-ink/5 p-5">
           <div>
@@ -1024,6 +1067,90 @@ function AttendanceRegister({
           </table>
         </div>
       </section>
+    </section>
+  );
+}
+function AttendanceSummaryPanel({
+  summary,
+  loading,
+  onRefresh,
+}: {
+  summary: AttendanceSummary;
+  loading: boolean;
+  onRefresh: () => Promise<void>;
+}) {
+  const totals = summary.daily.reduce(
+    (current, item) => ({
+      present: current.present + item.present,
+      late: current.late + item.late,
+      absent: current.absent + item.absent,
+    }),
+    { present: 0, late: 0, absent: 0 },
+  );
+  const cards = [
+    ["Present", totals.present, "text-emerald-700"],
+    ["Late", totals.late, "text-amber-700"],
+    ["Absent", totals.absent, "text-rose-700"],
+  ] as const;
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h3 className="font-serif text-2xl">Attendance summary</h3>
+          <p className="mt-1 text-sm text-steel">Daily and class-level totals for the selected date range.</p>
+        </div>
+        <Button variant="outline" onClick={() => void onRefresh()} disabled={loading}>
+          {loading ? "Refreshing…" : "Refresh summary"}
+        </Button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {cards.map(([label, value, color]) => (
+          <div key={label} className="surface p-4">
+            <p className="text-xs font-medium text-steel">{label}</p>
+            <p className={`mt-1 text-3xl font-semibold ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <section className="surface p-5">
+          <h4 className="text-sm font-semibold">Daily trend</h4>
+          <div className="mt-4 h-72">
+            {summary.daily.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={summary.daily} margin={{ top: 8, right: 8, bottom: 8, left: -16 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="present" name="Present" stroke="var(--chart-1)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="late" name="Late" stroke="var(--chart-3)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="absent" name="Absent" stroke="var(--destructive)" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <p className="pt-24 text-center text-sm text-steel">No saved attendance falls within this date range.</p>}
+          </div>
+        </section>
+        <section className="surface p-5">
+          <h4 className="text-sm font-semibold">Class totals</h4>
+          <div className="mt-4 h-72">
+            {summary.classes.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={summary.classes} margin={{ top: 8, right: 8, bottom: 8, left: -16 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="className" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="present" name="Present" fill="var(--chart-1)" />
+                  <Bar dataKey="late" name="Late" fill="var(--chart-3)" />
+                  <Bar dataKey="absent" name="Absent" fill="var(--destructive)" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <p className="pt-24 text-center text-sm text-steel">No class totals are available yet.</p>}
+          </div>
+        </section>
+      </div>
     </section>
   );
 }
