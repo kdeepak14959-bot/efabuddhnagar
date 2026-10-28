@@ -28,6 +28,7 @@ import {
   Pencil,
   Plus,
   School,
+  Search,
   Settings,
   Trash2,
   Users,
@@ -62,6 +63,7 @@ type Student = {
   id: string;
   full_name: string;
   admission_number: string;
+  roll_number: number | null;
   date_of_birth: string | null;
   class_id?: string | null;
   classes?: SchoolClass | null;
@@ -89,6 +91,7 @@ type AttendanceReportRow = {
   status: "present" | "absent" | "late";
   studentName: string;
   admissionNumber: string;
+  rollNumber: number | null;
   className: string;
 };
 type AttendanceSummary = {
@@ -204,20 +207,21 @@ function Dashboard() {
         ? supabase
             .from("parent_students")
             .select(
-              "students(id,full_name,admission_number,date_of_birth,class_id,classes(id,name,grade))",
+              "students(id,full_name,admission_number,roll_number,date_of_birth,class_id,classes(id,name,grade))",
             )
             .eq("parent_id", userId)
         : actualRole === "teacher"
           ? supabase
               .from("students")
               .select(
-                "id,full_name,admission_number,date_of_birth,class_id,classes!inner(id,name,grade,teacher_id)",
+                "id,full_name,admission_number,roll_number,date_of_birth,class_id,classes!inner(id,name,grade,teacher_id)",
               )
               .eq("classes.teacher_id", userId)
               .order("full_name")
           : supabase
               .from("students")
-              .select("id,full_name,admission_number,date_of_birth,class_id,classes(id,name,grade)")
+              .select("id,full_name,admission_number,roll_number,date_of_birth,class_id,classes(id,name,grade)")
+              .order("roll_number", { ascending: true, nullsFirst: false })
               .order("full_name");
     const timetableQuery =
       actualRole === "teacher"
@@ -657,6 +661,7 @@ function StudentList({ students }: { students: Student[] }) {
         <table className="w-full min-w-[520px] text-left text-sm">
           <thead className="border-y border-ink/5 text-[11px] uppercase tracking-[0.08em] text-steel">
             <tr>
+              <th className="p-4 font-medium">Roll no.</th>
               <th className="p-4 font-medium">Name</th>
               <th className="p-4 font-medium">Admission no.</th>
               <th className="p-4 font-medium">Class</th>
@@ -666,6 +671,7 @@ function StudentList({ students }: { students: Student[] }) {
             {students.length ? (
               students.map((student) => (
                 <tr key={student.id} className="border-b border-ink/5">
+                  <td className="p-4 font-medium">{student.roll_number ?? "—"}</td>
                   <td className="p-4 font-medium">{student.full_name}</td>
                   <td className="p-4 text-steel">{student.admission_number}</td>
                   <td className="p-4">
@@ -677,7 +683,7 @@ function StudentList({ students }: { students: Student[] }) {
               ))
             ) : (
               <tr>
-                <td colSpan={3} className="p-8 text-center text-sm text-steel">
+                  <td colSpan={4} className="p-8 text-center text-sm text-steel">
                   No student records are available yet.
                 </td>
               </tr>
@@ -765,6 +771,7 @@ function AttendanceRegister({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [statuses, setStatuses] = useState<Record<string, AttendanceRecord["status"]>>({});
+  const [studentSearch, setStudentSearch] = useState("");
   const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -772,7 +779,19 @@ function AttendanceRegister({
   const [summary, setSummary] = useState<AttendanceSummary>({ daily: [], classes: [] });
   const [summaryLoading, setSummaryLoading] = useState(false);
   const selectedClass = classes.find((schoolClass) => schoolClass.id === classId);
-  const classStudents = students.filter((student) => student.class_id === classId);
+  const classStudents = useMemo(
+    () => students
+      .filter((student) => student.class_id === classId)
+      .sort((a, b) => (a.roll_number ?? Number.MAX_SAFE_INTEGER) - (b.roll_number ?? Number.MAX_SAFE_INTEGER) || a.full_name.localeCompare(b.full_name)),
+    [classId, students],
+  );
+  const visibleStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase();
+    if (!query) return classStudents;
+    return classStudents.filter((student) =>
+      student.full_name.toLowerCase().includes(query) || String(student.roll_number ?? "").includes(query),
+    );
+  }, [classStudents, studentSearch]);
 
   useEffect(() => {
     if (!classId && classes[0]) setClassId(classes[0].id);
@@ -846,6 +865,7 @@ function AttendanceRegister({
   const chooseClass = (nextClassId: string) => {
     setClassId(nextClassId);
     setStatuses({});
+    setStudentSearch("");
     setMessage("");
   };
   const save = async () => {
@@ -866,7 +886,7 @@ function AttendanceRegister({
           })),
         },
       });
-      setMessage(`${result.recorded} attendance records saved.`);
+      setMessage(`${result.recorded} attendance records saved for ${selectedClass?.name ?? "this class"}. Existing records were updated, not duplicated.`);
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save attendance.");
@@ -877,10 +897,11 @@ function AttendanceRegister({
   const exportCsv = () => {
     const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
     const csv = [
-      ["Date", "Class", "Student", "Admission number", "Status"],
+      ["Date", "Class", "Roll number", "Student", "Admission number", "Status"],
       ...reportRows.map((row) => [
         row.attendanceDate,
         row.className,
+        row.rollNumber?.toString() ?? "",
         row.studentName,
         row.admissionNumber,
         row.status,
@@ -919,20 +940,21 @@ function AttendanceRegister({
     void loadSummary();
   }, [startDate, endDate]);
   return (
-    <section className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="font-serif text-3xl">Student attendance</h2>
-          <p className="mt-1 text-sm text-steel">
+    <section className="space-y-4 sm:space-y-5">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:flex sm:flex-wrap sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-leaf">Daily register</p>
+          <h2 className="mt-1 font-serif text-3xl">Student attendance</h2>
+          <p className="mt-1 max-w-xl text-sm text-steel">
             {role === "admin" ? "Record attendance for any class." : "Record attendance for your assigned classes."}
           </p>
         </div>
-        <Button onClick={save} disabled={saving || !classStudents.length}>
+        <Button onClick={save} disabled={saving || !classStudents.length} className="h-11 shrink-0 px-4 shadow-sm sm:px-5">
           <Check className="size-4" />
           {saving ? "Saving…" : "Save attendance"}
         </Button>
       </div>
-      <div className="surface grid gap-4 p-5 sm:grid-cols-2">
+      <div className="surface grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
         <label className="text-xs font-medium">
           Class
           <select
@@ -962,31 +984,44 @@ function AttendanceRegister({
         </label>
       </div>
       <section className="surface overflow-hidden">
-        <div className="flex items-center justify-between border-b border-ink/5 p-5">
-          <div>
-            <h3 className="text-sm font-semibold">{selectedClass ? `${selectedClass.grade} · ${selectedClass.name}` : "Choose a class"}</h3>
-            <p className="mt-1 text-xs text-steel">{classStudents.length} enrolled students</p>
+        <div className="grid gap-4 border-b border-ink/5 p-4 sm:grid-cols-[minmax(0,1fr)_18rem] sm:items-center sm:p-5">
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold">{selectedClass ? `${selectedClass.grade} · ${selectedClass.name}` : "Choose a class"}</h3>
+            <p className="mt-1 text-xs text-steel">{classStudents.length} enrolled students · listed by roll number</p>
+            {message && <p role="status" className="mt-2 text-sm text-steel">{message}</p>}
           </div>
-          <p role="status" className="text-sm text-steel">{message}</p>
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel" />
+            <Input
+              value={studentSearch}
+              onChange={(event) => setStudentSearch(event.target.value)}
+              placeholder="Search roll no. or name"
+              aria-label="Search students by roll number or name"
+              className="h-11 pl-9"
+            />
+          </label>
         </div>
         {classStudents.length ? (
           <div className="divide-y divide-ink/5">
-            {classStudents.map((student) => {
+            {visibleStudents.map((student) => {
               const status = statuses[student.id] ?? "present";
               return (
-                <div key={student.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{student.full_name}</p>
-                    <p className="text-xs text-steel">{student.admission_number}</p>
+                <div key={student.id} className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-accent text-sm font-semibold text-accent-foreground">{student.roll_number ?? "—"}</span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{student.full_name}</p>
+                      <p className="mt-0.5 truncate text-xs text-steel">Admission: {student.admission_number}</p>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-1 rounded-md bg-secondary p-1">
+                  <div className="grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1" role="group" aria-label={`Attendance status for ${student.full_name}`}>
                     {(["present", "late", "absent"] as const).map((value) => (
                       <Button
                         key={value}
                         type="button"
                         size="sm"
                         variant={status === value ? "default" : "ghost"}
-                        className="capitalize"
+                        className={`h-10 min-w-0 px-2 text-xs capitalize sm:min-w-20 sm:text-sm ${status === value ? "shadow-sm" : ""}`}
                         onClick={() => setStatuses((current) => ({ ...current, [student.id]: value }))}
                       >
                         {value}
@@ -999,6 +1034,9 @@ function AttendanceRegister({
           </div>
         ) : (
           <p className="p-8 text-center text-sm text-steel">No students are enrolled in this class yet.</p>
+        )}
+        {classStudents.length > 0 && visibleStudents.length === 0 && (
+          <p className="border-t border-ink/5 p-8 text-center text-sm text-steel">No students match that roll number or name.</p>
         )}
       </section>
       {role === "admin" && (
@@ -1048,20 +1086,21 @@ function AttendanceRegister({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] text-left text-sm">
             <thead className="bg-secondary text-xs text-steel">
-              <tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Student</th><th className="px-5 py-3 font-medium">Class</th><th className="px-5 py-3 font-medium">Status</th></tr>
+              <tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Roll</th><th className="px-5 py-3 font-medium">Student</th><th className="px-5 py-3 font-medium">Class</th><th className="px-5 py-3 font-medium">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-ink/5">
               {reportLoading ? (
-                <tr><td colSpan={4} className="px-5 py-8 text-center text-steel">Loading attendance records…</td></tr>
+                <tr><td colSpan={5} className="px-5 py-8 text-center text-steel">Loading attendance records…</td></tr>
               ) : reportRows.length ? reportRows.map((row) => (
                 <tr key={row.id}>
                   <td className="px-5 py-3">{row.attendanceDate}</td>
+                  <td className="px-5 py-3 font-medium">{row.rollNumber ?? "—"}</td>
                   <td className="px-5 py-3"><p className="font-medium">{row.studentName}</p><p className="text-xs text-steel">{row.admissionNumber}</p></td>
                   <td className="px-5 py-3">{row.className}</td>
                   <td className="px-5 py-3 capitalize">{row.status}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={4} className="px-5 py-8 text-center text-steel">No attendance records match these filters.</td></tr>
+                <tr><td colSpan={5} className="px-5 py-8 text-center text-steel">No attendance records match these filters.</td></tr>
               )}
             </tbody>
           </table>
@@ -1551,18 +1590,25 @@ function StudentsPage({
   const removeStudentRecord = useServerFn(deleteStudentRecord);
   const [fullName, setFullName] = useState("");
   const [admissionNumber, setAdmissionNumber] = useState("");
+  const [rollNumber, setRollNumber] = useState("");
   const [classId, setClassId] = useState("");
   const [editing, setEditing] = useState<Student | null>(null);
   const [message, setMessage] = useState("");
   const addStudent = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!fullName.trim() || !admissionNumber.trim()) {
-      setMessage("Enter the student's name and admission number.");
+    if (!fullName.trim() || !admissionNumber.trim() || !rollNumber.trim()) {
+      setMessage("Enter the student's name, admission number, and roll number.");
+      return;
+    }
+    const parsedRollNumber = Number(rollNumber);
+    if (!Number.isInteger(parsedRollNumber) || parsedRollNumber < 1) {
+      setMessage("Roll number must be a whole number greater than zero.");
       return;
     }
     const { error } = await supabase.from("students").insert({
       full_name: fullName.trim(),
       admission_number: admissionNumber.trim(),
+      roll_number: parsedRollNumber,
       class_id: classId || null,
     });
     if (error) {
@@ -1571,17 +1617,24 @@ function StudentsPage({
     }
     setFullName("");
     setAdmissionNumber("");
+    setRollNumber("");
     setClassId("");
     setMessage("Student added.");
     await refresh();
   };
   const saveStudent = async () => {
-    if (!editing || !fullName.trim() || !admissionNumber.trim()) return;
+    if (!editing || !fullName.trim() || !admissionNumber.trim() || !rollNumber.trim()) return;
+    const parsedRollNumber = Number(rollNumber);
+    if (!Number.isInteger(parsedRollNumber) || parsedRollNumber < 1) {
+      setMessage("Roll number must be a whole number greater than zero.");
+      return;
+    }
     const { error } = await supabase
       .from("students")
       .update({
         full_name: fullName.trim(),
         admission_number: admissionNumber.trim(),
+        roll_number: parsedRollNumber,
         class_id: classId || null,
       })
       .eq("id", editing.id);
@@ -1592,6 +1645,7 @@ function StudentsPage({
     setEditing(null);
     setFullName("");
     setAdmissionNumber("");
+    setRollNumber("");
     setClassId("");
     setMessage("Student updated.");
     await refresh();
@@ -1611,6 +1665,7 @@ function StudentsPage({
     setEditing(student);
     setFullName(student.full_name);
     setAdmissionNumber(student.admission_number);
+    setRollNumber(student.roll_number?.toString() ?? "");
     setClassId(student.class_id ?? "");
     setMessage("");
   };
@@ -1629,7 +1684,7 @@ function StudentsPage({
             <Plus className="size-4 text-leaf" />
             <h2 className="text-sm font-semibold">{editing ? "Edit student" : "Add a student"}</h2>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-xs font-medium">
               Full name
               <input
@@ -1646,6 +1701,18 @@ function StudentsPage({
                 onChange={(event) => setAdmissionNumber(event.target.value)}
                 className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
                 placeholder="e.g. RHA-1024"
+              />
+            </label>
+            <label className="text-xs font-medium">
+              Roll number
+              <input
+                type="number"
+                min="1"
+                inputMode="numeric"
+                value={rollNumber}
+                onChange={(event) => setRollNumber(event.target.value)}
+                className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
+                placeholder="e.g. 12"
               />
             </label>
             <label className="text-xs font-medium">
@@ -1677,6 +1744,7 @@ function StudentsPage({
                   setEditing(null);
                   setFullName("");
                   setAdmissionNumber("");
+                  setRollNumber("");
                   setClassId("");
                 }}
               >
@@ -1693,9 +1761,10 @@ function StudentsPage({
           <span className="text-xs text-leaf">Current records</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-left text-sm">
+          <table className="w-full min-w-[700px] text-left text-sm">
             <thead className="border-y border-ink/5 text-[11px] uppercase tracking-[0.08em] text-steel">
               <tr>
+                <th className="p-4">Roll no.</th>
                 <th className="p-4">Name</th>
                 <th className="p-4">Admission no.</th>
                 <th className="p-4">Class</th>
@@ -1706,6 +1775,7 @@ function StudentsPage({
               {students.length ? (
                 students.map((student) => (
                   <tr key={student.id} className="border-b border-ink/5">
+                    <td className="p-4 font-medium">{student.roll_number ?? "—"}</td>
                     <td className="p-4 font-medium">{student.full_name}</td>
                     <td className="p-4 text-steel">{student.admission_number}</td>
                     <td className="p-4 text-steel">{student.classes?.name ?? "Unassigned"}</td>
@@ -1736,7 +1806,7 @@ function StudentsPage({
               ) : (
                 <tr>
                   <td
-                    colSpan={role === "admin" ? 4 : 3}
+                    colSpan={role === "admin" ? 5 : 4}
                     className="p-8 text-center text-sm text-steel"
                   >
                     No student records are available yet.

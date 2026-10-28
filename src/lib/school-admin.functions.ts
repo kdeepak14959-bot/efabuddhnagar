@@ -267,7 +267,7 @@ export const getAttendanceReport = createServerFn({ method: "POST" })
 
     let query = context.supabase
       .from("attendance_records")
-      .select("id,attendance_date,status,students!inner(id,full_name,admission_number,class_id,classes!inner(id,name,grade,teacher_id))")
+      .select("id,attendance_date,status,students!inner(id,full_name,admission_number,roll_number,class_id,classes!inner(id,name,grade,teacher_id))")
       .order("attendance_date", { ascending: false });
 
     if (data.classId) query = query.eq("students.class_id", data.classId);
@@ -288,6 +288,7 @@ export const getAttendanceReport = createServerFn({ method: "POST" })
         status: record.status,
         studentName: student.full_name,
         admissionNumber: student.admission_number,
+        rollNumber: student.roll_number,
         className: `${schoolClass.grade} · ${schoolClass.name}`,
       }];
     });
