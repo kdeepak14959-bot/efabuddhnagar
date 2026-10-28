@@ -248,6 +248,7 @@ export type Database = {
           date_of_birth: string | null
           full_name: string
           id: string
+          roll_number: number | null
           updated_at: string
         }
         Insert: {
@@ -257,6 +258,7 @@ export type Database = {
           date_of_birth?: string | null
           full_name: string
           id?: string
+          roll_number?: number | null
           updated_at?: string
         }
         Update: {
@@ -266,6 +268,7 @@ export type Database = {
           date_of_birth?: string | null
           full_name?: string
           id?: string
+          roll_number?: number | null
           updated_at?: string
         }
         Relationships: [

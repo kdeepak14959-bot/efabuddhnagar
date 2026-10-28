@@ -15,3 +15,4 @@
 - Attendance submissions use a protected server function that derives the marker from the signed-in account and validates teacher class assignment before saving.
 - Attendance reports are loaded through a protected server function that enforces the caller's role; only the Principal interface exposes CSV export.
 - Principal attendance summaries are aggregated through a protected server function and use persisted records only.
+- Student roll numbers are optional at the data layer for existing records but required by the Principal-facing student form, unique within each assigned class, and used as the primary attendance roster order.
