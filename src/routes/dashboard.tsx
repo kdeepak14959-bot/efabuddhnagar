@@ -941,7 +941,7 @@ function AttendanceRegister({
   }, [startDate, endDate]);
   return (
     <section className="space-y-4 sm:space-y-5">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:flex sm:flex-wrap sm:justify-between sm:gap-4">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-leaf">Daily register</p>
           <h2 className="mt-1 font-serif text-3xl">Student attendance</h2>
@@ -949,7 +949,7 @@ function AttendanceRegister({
             {role === "admin" ? "Record attendance for any class." : "Record attendance for your assigned classes."}
           </p>
         </div>
-        <Button onClick={save} disabled={saving || !classStudents.length} className="h-11 shrink-0 px-4 shadow-sm sm:px-5">
+        <Button onClick={save} disabled={saving || !classStudents.length} className="h-11 w-full shrink-0 px-4 shadow-sm sm:w-auto sm:px-5">
           <Check className="size-4" />
           {saving ? "Saving…" : "Save attendance"}
         </Button>
@@ -1022,6 +1022,7 @@ function AttendanceRegister({
                         size="sm"
                         variant={status === value ? "default" : "ghost"}
                         className={`h-10 min-w-0 px-2 text-xs capitalize sm:min-w-20 sm:text-sm ${status === value ? "shadow-sm" : ""}`}
+                        aria-pressed={status === value}
                         onClick={() => setStatuses((current) => ({ ...current, [student.id]: value }))}
                       >
                         {value}
@@ -1039,6 +1040,12 @@ function AttendanceRegister({
           <p className="border-t border-ink/5 p-8 text-center text-sm text-steel">No students match that roll number or name.</p>
         )}
       </section>
+      <div className="sticky bottom-3 z-10 sm:hidden">
+        <Button onClick={save} disabled={saving || !classStudents.length} className="h-12 w-full shadow-lg">
+          <Check className="size-4" />
+          {saving ? "Saving…" : "Save attendance"}
+        </Button>
+      </div>
       {role === "admin" && (
         <AttendanceSummaryPanel summary={summary} loading={summaryLoading} onRefresh={loadSummary} />
       )}
