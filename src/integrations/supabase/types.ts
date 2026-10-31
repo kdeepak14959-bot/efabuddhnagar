@@ -94,6 +94,107 @@ export type Database = {
           },
         ]
       }
+      fee_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          fee_record_id: string
+          id: string
+          payment_date: string
+          payment_method: string
+          receipt_number: string
+          recorded_by: string | null
+          reference_number: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          fee_record_id: string
+          id?: string
+          payment_date?: string
+          payment_method: string
+          receipt_number: string
+          recorded_by?: string | null
+          reference_number?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          fee_record_id?: string
+          id?: string
+          payment_date?: string
+          payment_method?: string
+          receipt_number?: string
+          recorded_by?: string | null
+          reference_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_payments_fee_record_id_fkey"
+            columns: ["fee_record_id"]
+            isOneToOne: false
+            referencedRelation: "student_fee_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_payments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fee_structures: {
+        Row: {
+          academic_session: string
+          admission_fee: number
+          class_id: string
+          created_at: string
+          due_day: number
+          examination_fee: number
+          id: string
+          other_charges: number
+          transport_fee_monthly: number
+          tuition_fee_monthly: number
+          updated_at: string
+        }
+        Insert: {
+          academic_session: string
+          admission_fee?: number
+          class_id: string
+          created_at?: string
+          due_day?: number
+          examination_fee?: number
+          id?: string
+          other_charges?: number
+          transport_fee_monthly?: number
+          tuition_fee_monthly?: number
+          updated_at?: string
+        }
+        Update: {
+          academic_session?: string
+          admission_fee?: number
+          class_id?: string
+          created_at?: string
+          due_day?: number
+          examination_fee?: number
+          id?: string
+          other_charges?: number
+          transport_fee_monthly?: number
+          tuition_fee_monthly?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_structures_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notices: {
         Row: {
           body: string
@@ -240,34 +341,148 @@ export type Database = {
         }
         Relationships: []
       }
+      student_fee_records: {
+        Row: {
+          academic_session: string
+          admission_fee: number
+          created_at: string
+          due_date: string
+          examination_fee: number
+          fee_structure_id: string | null
+          id: string
+          notes: string | null
+          other_charges: number
+          student_id: string
+          transport_fee: number
+          tuition_fee: number
+          updated_at: string
+        }
+        Insert: {
+          academic_session: string
+          admission_fee?: number
+          created_at?: string
+          due_date: string
+          examination_fee?: number
+          fee_structure_id?: string | null
+          id?: string
+          notes?: string | null
+          other_charges?: number
+          student_id: string
+          transport_fee?: number
+          tuition_fee?: number
+          updated_at?: string
+        }
+        Update: {
+          academic_session?: string
+          admission_fee?: number
+          created_at?: string
+          due_date?: string
+          examination_fee?: number
+          fee_structure_id?: string | null
+          id?: string
+          notes?: string | null
+          other_charges?: number
+          student_id?: string
+          transport_fee?: number
+          tuition_fee?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_fee_records_fee_structure_id_fkey"
+            columns: ["fee_structure_id"]
+            isOneToOne: false
+            referencedRelation: "fee_structures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fee_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
+          address_district: string | null
+          address_pin_code: string | null
+          address_post_office: string | null
+          address_state: string | null
+          address_village: string | null
+          admission_date: string | null
           admission_number: string
+          alternate_mobile: string | null
           class_id: string | null
           created_at: string
           date_of_birth: string | null
+          emergency_contact_number: string | null
+          enrollment_status: string
+          father_name: string | null
           full_name: string
+          gender: string | null
+          guardian_email: string | null
+          guardian_name: string | null
           id: string
+          mother_name: string | null
+          photo_path: string | null
+          previous_school_name: string | null
+          primary_mobile: string | null
           roll_number: number | null
           updated_at: string
         }
         Insert: {
+          address_district?: string | null
+          address_pin_code?: string | null
+          address_post_office?: string | null
+          address_state?: string | null
+          address_village?: string | null
+          admission_date?: string | null
           admission_number: string
+          alternate_mobile?: string | null
           class_id?: string | null
           created_at?: string
           date_of_birth?: string | null
+          emergency_contact_number?: string | null
+          enrollment_status?: string
+          father_name?: string | null
           full_name: string
+          gender?: string | null
+          guardian_email?: string | null
+          guardian_name?: string | null
           id?: string
+          mother_name?: string | null
+          photo_path?: string | null
+          previous_school_name?: string | null
+          primary_mobile?: string | null
           roll_number?: number | null
           updated_at?: string
         }
         Update: {
+          address_district?: string | null
+          address_pin_code?: string | null
+          address_post_office?: string | null
+          address_state?: string | null
+          address_village?: string | null
+          admission_date?: string | null
           admission_number?: string
+          alternate_mobile?: string | null
           class_id?: string | null
           created_at?: string
           date_of_birth?: string | null
+          emergency_contact_number?: string | null
+          enrollment_status?: string
+          father_name?: string | null
           full_name?: string
+          gender?: string | null
+          guardian_email?: string | null
+          guardian_name?: string | null
           id?: string
+          mother_name?: string | null
+          photo_path?: string | null
+          previous_school_name?: string | null
+          primary_mobile?: string | null
           roll_number?: number | null
           updated_at?: string
         }
@@ -359,6 +574,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_fee_records_for_class: {
+        Args: {
+          _academic_session: string
+          _class_id: string
+          _due_date: string
+        }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
