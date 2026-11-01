@@ -16,3 +16,4 @@
 - Attendance reports are loaded through a protected server function that enforces the caller's role; only the Principal interface exposes CSV export.
 - Principal attendance summaries are aggregated through a protected server function and use persisted records only.
 - Student roll numbers are optional at the data layer for existing records but required by the Principal-facing student form, unique within each assigned class, and used as the primary attendance roster order.
+- Student information and fee management use additive profile columns plus fee structures, student fee records, and payment records; all write operations run through Principal-validated server functions to preserve student and attendance relationships.
