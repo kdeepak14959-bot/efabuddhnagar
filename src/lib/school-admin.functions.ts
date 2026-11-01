@@ -32,6 +32,55 @@ const principalPasswordResetInput = z.object({
 });
 
 const attendanceStatus = z.enum(["present", "late", "absent"]);
+const studentStatus = z.enum(["active", "inactive", "transferred"]);
+const studentProfileInput = z.object({
+  id: z.string().uuid().optional(),
+  fullName: z.string().trim().min(2).max(120),
+  admissionNumber: z.string().trim().min(2).max(60),
+  rollNumber: z.number().int().positive().nullable(),
+  classId: z.string().uuid().nullable(),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  gender: z.enum(["female", "male", "other", "prefer_not_to_say"]).nullable(),
+  admissionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  fatherName: z.string().trim().max(120).nullable(),
+  motherName: z.string().trim().max(120).nullable(),
+  guardianName: z.string().trim().max(120).nullable(),
+  primaryMobile: z.string().trim().max(32).nullable(),
+  alternateMobile: z.string().trim().max(32).nullable(),
+  addressVillage: z.string().trim().max(120).nullable(),
+  addressPostOffice: z.string().trim().max(120).nullable(),
+  addressDistrict: z.string().trim().max(120).nullable(),
+  addressState: z.string().trim().max(120).nullable(),
+  addressPinCode: z.string().trim().max(16).nullable(),
+  guardianEmail: z.string().trim().email().max(255).nullable(),
+  photoPath: z.string().trim().max(512).nullable(),
+  previousSchoolName: z.string().trim().max(160).nullable(),
+  emergencyContactNumber: z.string().trim().max(32).nullable(),
+  enrollmentStatus: studentStatus,
+});
+const feeStructureInput = z.object({
+  classId: z.string().uuid(),
+  academicSession: z.string().trim().min(4).max(40),
+  admissionFee: z.number().min(0).max(10000000),
+  tuitionFeeMonthly: z.number().min(0).max(10000000),
+  examinationFee: z.number().min(0).max(10000000),
+  transportFeeMonthly: z.number().min(0).max(10000000),
+  otherCharges: z.number().min(0).max(10000000),
+  dueDay: z.number().int().min(1).max(28),
+});
+const generateFeeRecordsInput = z.object({
+  classId: z.string().uuid(),
+  academicSession: z.string().trim().min(4).max(40),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+const feePaymentInput = z.object({
+  feeRecordId: z.string().uuid(),
+  amount: z.number().positive().max(10000000),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  paymentMethod: z.enum(["cash", "upi", "bank_transfer"]),
+  referenceNumber: z.string().trim().max(120).nullable(),
+});
+const studentFeeSummaryInput = z.object({ id: z.string().uuid() });
 const saveAttendanceInput = z.object({
   classId: z.string().uuid(),
   attendanceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -197,6 +246,118 @@ export const resetPrincipalPassword = createServerFn({ method: "POST" })
     });
     if (updateError) throw new Error(updateError.message);
     return { ok: true };
+  });
+
+export const saveStudentProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => studentProfileInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const payload = {
+      full_name: data.fullName,
+      admission_number: data.admissionNumber,
+      roll_number: data.rollNumber,
+      class_id: data.classId,
+      date_of_birth: data.dateOfBirth,
+      gender: data.gender,
+      admission_date: data.admissionDate,
+      father_name: data.fatherName,
+      mother_name: data.motherName,
+      guardian_name: data.guardianName,
+      primary_mobile: data.primaryMobile,
+      alternate_mobile: data.alternateMobile,
+      address_village: data.addressVillage,
+      address_post_office: data.addressPostOffice,
+      address_district: data.addressDistrict,
+      address_state: data.addressState,
+      address_pin_code: data.addressPinCode,
+      guardian_email: data.guardianEmail,
+      photo_path: data.photoPath,
+      previous_school_name: data.previousSchoolName,
+      emergency_contact_number: data.emergencyContactNumber,
+      enrollment_status: data.enrollmentStatus,
+    };
+    const result = data.id
+      ? await supabaseAdmin.from("students").update(payload).eq("id", data.id).select("id").single()
+      : await supabaseAdmin.from("students").insert(payload).select("id").single();
+    if (result.error || !result.data) throw new Error(result.error?.message ?? "Could not save the student.");
+    return { id: result.data.id };
+  });
+
+export const saveFeeStructure = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => feeStructureInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("fee_structures").upsert({
+      class_id: data.classId,
+      academic_session: data.academicSession,
+      admission_fee: data.admissionFee,
+      tuition_fee_monthly: data.tuitionFeeMonthly,
+      examination_fee: data.examinationFee,
+      transport_fee_monthly: data.transportFeeMonthly,
+      other_charges: data.otherCharges,
+      due_day: data.dueDay,
+    }, { onConflict: "class_id,academic_session" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const generateClassFeeRecords = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => generateFeeRecordsInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { data: count, error } = await context.supabase.rpc("create_fee_records_for_class", {
+      _class_id: data.classId,
+      _academic_session: data.academicSession,
+      _due_date: data.dueDate,
+    });
+    if (error) throw new Error(error.message);
+    return { created: count ?? 0 };
+  });
+
+export const recordFeePayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => feePaymentInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const receiptNumber = `RCP-${data.paymentDate.replaceAll("-", "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const { data: payment, error } = await supabaseAdmin.from("fee_payments").insert({
+      fee_record_id: data.feeRecordId,
+      receipt_number: receiptNumber,
+      amount: data.amount,
+      payment_date: data.paymentDate,
+      payment_method: data.paymentMethod,
+      reference_number: data.referenceNumber,
+      recorded_by: context.userId,
+    }).select("id,receipt_number").single();
+    if (error || !payment) throw new Error(error?.message ?? "Could not record the payment.");
+    return { id: payment.id, receiptNumber: payment.receipt_number };
+  });
+
+export const getStudentFeeSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => studentFeeSummaryInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: role, error: roleError } = await context.supabase.from("user_roles").select("role").eq("user_id", context.userId).maybeSingle();
+    if (roleError) throw new Error(roleError.message);
+    if (role?.role === "parent") {
+      const { data: link, error: linkError } = await context.supabase.from("parent_students").select("student_id").eq("parent_id", context.userId).eq("student_id", data.id).maybeSingle();
+      if (linkError || !link) throw new Response("Forbidden", { status: 403 });
+    } else if (role?.role !== "admin") {
+      throw new Response("Forbidden", { status: 403 });
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: records, error } = await supabaseAdmin.from("student_fee_records").select("id,academic_session,due_date,admission_fee,tuition_fee,examination_fee,transport_fee,other_charges,notes,fee_payments(id,receipt_number,amount,payment_date,payment_method,reference_number)").eq("student_id", data.id).order("due_date", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (records ?? []).map((record) => ({
+      ...record,
+      payments: Array.isArray(record.fee_payments) ? record.fee_payments : record.fee_payments ? [record.fee_payments] : [],
+    }));
   });
 
 export const saveClassAttendance = createServerFn({ method: "POST" })

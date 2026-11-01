@@ -43,6 +43,13 @@
       "when": 1793463260382,
       "tag": "0005_expand_student_information_and_fee_management",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793548835515,
+      "tag": "0006_secure_student_photo_storage",
+      "breakpoints": true
     }
   ]
 }
