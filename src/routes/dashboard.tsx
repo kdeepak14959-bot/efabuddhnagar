@@ -17,8 +17,10 @@ import {
   BookOpen,
   CalendarDays,
   Check,
+  ChevronLeft,
   ClipboardCheck,
   Download,
+  FileText,
   GraduationCap,
   ImageUp,
   LayoutDashboard,
@@ -27,6 +29,7 @@ import {
   Palette,
   Pencil,
   Plus,
+  Receipt,
   School,
   Search,
   Settings,
@@ -44,6 +47,11 @@ import {
   deleteTeacherAccount,
   saveClassAttendance,
   getAttendanceReport,
+  generateClassFeeRecords,
+  getStudentFeeSummary,
+  recordFeePayment,
+  saveFeeStructure,
+  saveStudentProfile,
   getAttendanceSummary,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
@@ -67,7 +75,25 @@ type Student = {
   date_of_birth: string | null;
   class_id?: string | null;
   classes?: SchoolClass | null;
+  gender?: string | null;
+  admission_date?: string | null;
+  father_name?: string | null;
+  mother_name?: string | null;
+  guardian_name?: string | null;
+  primary_mobile?: string | null;
+  alternate_mobile?: string | null;
+  address_village?: string | null;
+  address_post_office?: string | null;
+  address_district?: string | null;
+  address_state?: string | null;
+  address_pin_code?: string | null;
+  guardian_email?: string | null;
+  photo_path?: string | null;
+  previous_school_name?: string | null;
+  emergency_contact_number?: string | null;
+  enrollment_status?: "active" | "inactive" | "transferred";
 };
+type FeeRecord = { id: string; academic_session: string; due_date: string; admission_fee: number; tuition_fee: number; examination_fee: number; transport_fee: number; other_charges: number; notes: string | null; payments: { id: string; receipt_number: string; amount: number; payment_date: string; payment_method: string; reference_number: string | null }[] };
 type TimetableEntry = {
   id: string;
   class_id: string;
@@ -166,6 +192,7 @@ function Dashboard() {
         ? [
             [LayoutDashboard, "Overview"],
             [Users, "Students"],
+            [Receipt, "Fees"],
             [GraduationCap, "Teachers"],
             [School, "Classes"],
             [ClipboardCheck, "Attendance"],
@@ -214,7 +241,7 @@ function Dashboard() {
           ? supabase
               .from("students")
               .select(
-                "id,full_name,admission_number,roll_number,date_of_birth,class_id,classes!inner(id,name,grade,teacher_id)",
+                "id,full_name,admission_number,roll_number,date_of_birth,class_id,gender,admission_date,father_name,mother_name,guardian_name,primary_mobile,alternate_mobile,address_village,address_post_office,address_district,address_state,address_pin_code,guardian_email,photo_path,previous_school_name,emergency_contact_number,enrollment_status,classes!inner(id,name,grade,teacher_id)",
               )
               .eq("classes.teacher_id", userId)
               .order("full_name")
@@ -719,6 +746,7 @@ function SectionView({
 }) {
   if (section === "Students")
     return <StudentsPage role={role} students={students} classes={classes} refresh={refresh} />;
+  if (section === "Fees" && role === "admin") return <FeeManagementPage students={students} classes={classes} />;
   if (section === "My child") return <StudentList students={students} />;
   if (section === "Notices") return <Notices notices={notices} />;
   if (section === "Attendance")
@@ -1583,250 +1611,56 @@ function SchoolSettingsPage({ principalId }: { principalId: string }) {
     </form>
   );
 }
-function StudentsPage({
-  role,
-  students,
-  classes,
-  refresh,
-}: {
-  role: Role;
-  students: Student[];
-  classes: SchoolClass[];
-  refresh: () => Promise<void>;
-}) {
-  const removeStudentRecord = useServerFn(deleteStudentRecord);
-  const [fullName, setFullName] = useState("");
-  const [admissionNumber, setAdmissionNumber] = useState("");
-  const [rollNumber, setRollNumber] = useState("");
-  const [classId, setClassId] = useState("");
-  const [editing, setEditing] = useState<Student | null>(null);
-  const [message, setMessage] = useState("");
-  const addStudent = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!fullName.trim() || !admissionNumber.trim() || !rollNumber.trim()) {
-      setMessage("Enter the student's name, admission number, and roll number.");
-      return;
-    }
-    const parsedRollNumber = Number(rollNumber);
-    if (!Number.isInteger(parsedRollNumber) || parsedRollNumber < 1) {
-      setMessage("Roll number must be a whole number greater than zero.");
-      return;
-    }
-    const { error } = await supabase.from("students").insert({
-      full_name: fullName.trim(),
-      admission_number: admissionNumber.trim(),
-      roll_number: parsedRollNumber,
-      class_id: classId || null,
-    });
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-    setFullName("");
-    setAdmissionNumber("");
-    setRollNumber("");
-    setClassId("");
-    setMessage("Student added.");
-    await refresh();
-  };
-  const saveStudent = async () => {
-    if (!editing || !fullName.trim() || !admissionNumber.trim() || !rollNumber.trim()) return;
-    const parsedRollNumber = Number(rollNumber);
-    if (!Number.isInteger(parsedRollNumber) || parsedRollNumber < 1) {
-      setMessage("Roll number must be a whole number greater than zero.");
-      return;
-    }
-    const { error } = await supabase
-      .from("students")
-      .update({
-        full_name: fullName.trim(),
-        admission_number: admissionNumber.trim(),
-        roll_number: parsedRollNumber,
-        class_id: classId || null,
-      })
-      .eq("id", editing.id);
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-    setEditing(null);
-    setFullName("");
-    setAdmissionNumber("");
-    setRollNumber("");
-    setClassId("");
-    setMessage("Student updated.");
-    await refresh();
-  };
-  const removeStudent = async (student: Student) => {
-    if (!window.confirm(`Remove ${student.full_name}? This also removes their attendance history.`))
-      return;
-    try {
-      await removeStudentRecord({ data: { id: student.id } });
-      setMessage("Student removed.");
-      await refresh();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not remove the student.");
-    }
-  };
-  const openEdit = (student: Student) => {
-    setEditing(student);
-    setFullName(student.full_name);
-    setAdmissionNumber(student.admission_number);
-    setRollNumber(student.roll_number?.toString() ?? "");
-    setClassId(student.class_id ?? "");
-    setMessage("");
-  };
-  return (
-    <div className="space-y-5">
-      {role === "admin" && (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (editing) void saveStudent();
-            else void addStudent(event);
-          }}
-          className="surface p-5"
-        >
-          <div className="flex items-center gap-2">
-            <Plus className="size-4 text-leaf" />
-            <h2 className="text-sm font-semibold">{editing ? "Edit student" : "Add a student"}</h2>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="text-xs font-medium">
-              Full name
-              <input
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
-                placeholder="Student name"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              Admission number
-              <input
-                value={admissionNumber}
-                onChange={(event) => setAdmissionNumber(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
-                placeholder="e.g. RHA-1024"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              Roll number
-              <input
-                type="number"
-                min="1"
-                inputMode="numeric"
-                value={rollNumber}
-                onChange={(event) => setRollNumber(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
-                placeholder="e.g. 12"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              Class
-              <select
-                value={classId}
-                onChange={(event) => setClassId(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm"
-              >
-                <option value="">Assign later</option>
-                {classes.map((schoolClass) => (
-                  <option key={schoolClass.id} value={schoolClass.id}>
-                    {schoolClass.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <Button type="submit" size="sm">
-              {editing ? "Save student" : "Add student"}
-            </Button>
-            {editing && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setEditing(null);
-                  setFullName("");
-                  setAdmissionNumber("");
-                  setRollNumber("");
-                  setClassId("");
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-            {message && <p className="text-sm text-steel">{message}</p>}
-          </div>
-        </form>
-      )}
-      <section className="surface overflow-hidden">
-        <div className="flex items-center justify-between p-5">
-          <h2 className="text-sm font-semibold">Students</h2>
-          <span className="text-xs text-leaf">Current records</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
-            <thead className="border-y border-ink/5 text-[11px] uppercase tracking-[0.08em] text-steel">
-              <tr>
-                <th className="p-4">Roll no.</th>
-                <th className="p-4">Name</th>
-                <th className="p-4">Admission no.</th>
-                <th className="p-4">Class</th>
-                {role === "admin" && <th className="p-4" aria-label="Actions" />}
-              </tr>
-            </thead>
-            <tbody>
-              {students.length ? (
-                students.map((student) => (
-                  <tr key={student.id} className="border-b border-ink/5">
-                    <td className="p-4 font-medium">{student.roll_number ?? "—"}</td>
-                    <td className="p-4 font-medium">{student.full_name}</td>
-                    <td className="p-4 text-steel">{student.admission_number}</td>
-                    <td className="p-4 text-steel">{student.classes?.name ?? "Unassigned"}</td>
-                    {role === "admin" && (
-                      <td className="p-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title={`Edit ${student.full_name}`}
-                          aria-label={`Edit ${student.full_name}`}
-                          onClick={() => openEdit(student)}
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title={`Remove ${student.full_name}`}
-                          aria-label={`Remove ${student.full_name}`}
-                          onClick={() => void removeStudent(student)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={role === "admin" ? 5 : 4}
-                    className="p-8 text-center text-sm text-steel"
-                  >
-                    No student records are available yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
+function emptyProfile() {
+  return { fullName: "", admissionNumber: "", rollNumber: "", classId: "", dateOfBirth: "", gender: "", admissionDate: new Date().toISOString().slice(0, 10), fatherName: "", motherName: "", guardianName: "", primaryMobile: "", alternateMobile: "", addressVillage: "", addressPostOffice: "", addressDistrict: "", addressState: "", addressPinCode: "", guardianEmail: "", photoPath: "", previousSchoolName: "", emergencyContactNumber: "", enrollmentStatus: "active" as const };
 }
+function StudentsPage({ role, students, classes, refresh }: { role: Role; students: Student[]; classes: SchoolClass[]; refresh: () => Promise<void> }) {
+  const saveProfile = useServerFn(saveStudentProfile);
+  const removeStudentRecord = useServerFn(deleteStudentRecord);
+  const loadFees = useServerFn(getStudentFeeSummary);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Student | null>(null);
+  const [form, setForm] = useState(emptyProfile());
+  const [tab, setTab] = useState<"profile" | "attendance" | "fees">("profile");
+  const [feeRecords, setFeeRecords] = useState<FeeRecord[]>([]);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const visibleStudents = students.filter((student) => [student.full_name, student.admission_number, String(student.roll_number ?? ""), student.classes?.name ?? ""].join(" ").toLowerCase().includes(query.toLowerCase()));
+  const openStudent = async (student?: Student) => {
+    const value = student ? { fullName: student.full_name, admissionNumber: student.admission_number, rollNumber: student.roll_number?.toString() ?? "", classId: student.class_id ?? "", dateOfBirth: student.date_of_birth ?? "", gender: student.gender ?? "", admissionDate: student.admission_date ?? "", fatherName: student.father_name ?? "", motherName: student.mother_name ?? "", guardianName: student.guardian_name ?? "", primaryMobile: student.primary_mobile ?? "", alternateMobile: student.alternate_mobile ?? "", addressVillage: student.address_village ?? "", addressPostOffice: student.address_post_office ?? "", addressDistrict: student.address_district ?? "", addressState: student.address_state ?? "", addressPinCode: student.address_pin_code ?? "", guardianEmail: student.guardian_email ?? "", photoPath: student.photo_path ?? "", previousSchoolName: student.previous_school_name ?? "", emergencyContactNumber: student.emergency_contact_number ?? "", enrollmentStatus: student.enrollment_status ?? "active" as const } : emptyProfile();
+    setSelected(student ?? null); setForm(value); setTab("profile"); setMessage(""); setFeeRecords([]);
+    if (student) { try { setFeeRecords(await loadFees({ data: { id: student.id } }) as FeeRecord[]); } catch { setMessage("Fee history could not be loaded."); } }
+  };
+  const uploadPhoto = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 2 * 1024 * 1024) { setMessage("Choose an image under 2 MB."); return; }
+    const path = `students/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+    const { error } = await supabase.storage.from("student-photos").upload(path, file, { upsert: false });
+    if (error) { setMessage(error.message); return; }
+    setForm((current) => ({ ...current, photoPath: path }));
+  };
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const roll = form.rollNumber ? Number(form.rollNumber) : null;
+    if (!form.fullName.trim() || !form.admissionNumber.trim() || (form.rollNumber && (!Number.isInteger(roll) || Number(roll) < 1))) { setMessage("Enter a name, admission number, and a valid roll number when supplied."); return; }
+    setSaving(true); setMessage("");
+    try {
+      const saved = await saveProfile({ data: { id: selected?.id, fullName: form.fullName, admissionNumber: form.admissionNumber, rollNumber: roll, classId: form.classId || null, dateOfBirth: form.dateOfBirth || null, gender: form.gender || null, admissionDate: form.admissionDate || null, fatherName: form.fatherName || null, motherName: form.motherName || null, guardianName: form.guardianName || null, primaryMobile: form.primaryMobile || null, alternateMobile: form.alternateMobile || null, addressVillage: form.addressVillage || null, addressPostOffice: form.addressPostOffice || null, addressDistrict: form.addressDistrict || null, addressState: form.addressState || null, addressPinCode: form.addressPinCode || null, guardianEmail: form.guardianEmail || null, photoPath: form.photoPath || null, previousSchoolName: form.previousSchoolName || null, emergencyContactNumber: form.emergencyContactNumber || null, enrollmentStatus: form.enrollmentStatus } });
+      setMessage("Student profile saved."); await refresh(); if (!selected) { const current = students.find((student) => student.id === saved.id); if (current) await openStudent(current); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the student profile."); } finally { setSaving(false); }
+  };
+  if (role !== "admin") return <StudentList students={students} />;
+  return <div className="space-y-5">
+    {!selected ? <><section className="surface p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-steel">Student information</p><h2 className="mt-1 font-serif text-3xl">Students</h2></div><Button onClick={() => void openStudent()}><Plus className="size-4" /> Add student</Button></div><div className="mt-5"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, admission no., roll no. or class" aria-label="Search students" /></div></section><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{visibleStudents.map((student) => <button key={student.id} onClick={() => void openStudent(student)} className="surface flex min-h-32 items-center gap-4 p-4 text-left transition hover:ring-primary/30"><div className="grid size-12 shrink-0 place-items-center rounded-lg bg-accent font-serif text-lg text-accent-foreground">{student.full_name.slice(0, 1)}</div><div className="min-w-0"><p className="truncate font-semibold">{student.full_name}</p><p className="mt-1 text-xs text-steel">#{student.admission_number} · Roll {student.roll_number ?? "—"}</p><span className="mt-2 inline-block rounded-full bg-leaf/10 px-2 py-1 text-[11px] font-medium text-leaf">{student.classes?.name ?? "Unassigned"}</span></div></button>)}</section>{!visibleStudents.length && <p className="py-10 text-center text-sm text-steel">No students match your search.</p>}</> : <section className="space-y-5"><Button variant="ghost" onClick={() => setSelected(null)}><ChevronLeft className="size-4" /> All students</Button><div className="surface overflow-hidden"><div className="flex flex-col gap-4 border-b border-ink/5 p-5 sm:flex-row sm:items-center"><div className="grid size-16 place-items-center rounded-lg bg-accent font-serif text-2xl text-accent-foreground">{form.fullName.slice(0,1) || "S"}</div><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-steel">{selected ? selected.admission_number : "New admission"}</p><h2 className="font-serif text-3xl">{form.fullName || "Student profile"}</h2></div></div><div className="flex border-b border-ink/5 px-5">{(["profile", "attendance", "fees"] as const).map((name) => <Button key={name} variant="ghost" onClick={() => setTab(name)} className={tab === name ? "border-b-2 border-primary rounded-none" : "rounded-none"}>{name[0].toUpperCase() + name.slice(1)}</Button>)}</div><div className="p-5">{tab === "profile" && <StudentProfileForm form={form} setForm={setForm} classes={classes} saving={saving} onSubmit={submit} onPhoto={uploadPhoto} />}{tab === "attendance" && <StudentAttendance studentId={selected?.id} />}{tab === "fees" && <StudentFees records={feeRecords} />}{message && <p role="status" className="mt-4 text-sm text-steel">{message}</p>}<div className="mt-5 flex flex-wrap gap-3">{tab === "profile" && <Button type="submit" form="student-profile" disabled={saving}>{saving ? "Saving…" : "Save profile"}</Button>}{selected && <Button variant="outline" onClick={() => void (async () => { if (window.confirm(`Remove ${selected.full_name}? Their attendance and fee records will also be removed.`)) { await removeStudentRecord({ data: { id: selected.id } }); setSelected(null); await refresh(); } })()}>Remove student</Button>}</div></div></div></section>}</div>;
+}
+function StudentProfileForm({ form, setForm, classes, saving, onSubmit, onPhoto }: { form: ReturnType<typeof emptyProfile>; setForm: React.Dispatch<React.SetStateAction<ReturnType<typeof emptyProfile>>>; classes: SchoolClass[]; saving: boolean; onSubmit: (event: React.FormEvent) => void; onPhoto: (file?: File) => Promise<void> }) {
+  const fields: [keyof ReturnType<typeof emptyProfile>, string, string][] = [["fullName","Full name","text"],["admissionNumber","Admission number","text"],["rollNumber","Roll number","number"],["dateOfBirth","Date of birth","date"],["admissionDate","Admission date","date"],["fatherName","Father’s name","text"],["motherName","Mother’s name","text"],["guardianName","Guardian’s name","text"],["primaryMobile","Primary mobile","tel"],["alternateMobile","Alternate mobile","tel"],["guardianEmail","Parent/guardian email","email"],["emergencyContactNumber","Emergency contact","tel"],["previousSchoolName","Previous school","text"],["addressVillage","Village","text"],["addressPostOffice","Post office","text"],["addressDistrict","District","text"],["addressState","State","text"],["addressPinCode","PIN code","text"]];
+  return <form id="student-profile" onSubmit={onSubmit} className="space-y-6"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([key,label,type]) => <label key={key} className="text-xs font-medium">{label}<Input className="mt-1.5" type={type} value={form[key] as string} onChange={(event) => setForm((current) => ({...current,[key]: event.target.value}))} /></label>)}<label className="text-xs font-medium">Class & section<select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.classId} onChange={(event) => setForm((current) => ({...current,classId:event.target.value}))}><option value="">Unassigned</option>{classes.map((schoolClass) => <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.grade} · {schoolClass.name}</option>)}</select></label><label className="text-xs font-medium">Gender<select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.gender} onChange={(event) => setForm((current) => ({...current,gender:event.target.value}))}><option value="">Not specified</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option><option value="prefer_not_to_say">Prefer not to say</option></select></label><label className="text-xs font-medium">Student status<select className="mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.enrollmentStatus} onChange={(event) => setForm((current) => ({...current,enrollmentStatus:event.target.value as ReturnType<typeof emptyProfile>["enrollmentStatus"]}))}><option value="active">Active</option><option value="inactive">Inactive</option><option value="transferred">Transferred</option></select></label><label className="text-xs font-medium">Student photo<input className="mt-1.5 block w-full text-sm" type="file" accept="image/*" onChange={(event) => void onPhoto(event.target.files?.[0])} /></label></div></form>;
+}
+function StudentAttendance({ studentId }: { studentId?: string }) { const [rows,setRows]=useState<AttendanceRecord[]>([]); useEffect(()=>{ if(studentId) void supabase.from("attendance_records").select("id,status,attendance_date").eq("student_id",studentId).order("attendance_date",{ascending:false}).then(({data})=>setRows(data??[])); },[studentId]); const total=rows.length; const present=rows.filter((row)=>row.status==="present").length; return <div><p className="font-serif text-4xl">{total ? Math.round((present/total)*100) : 0}%</p><p className="mt-1 text-sm text-steel">Attendance rate from {total} recorded days.</p><div className="mt-5 space-y-2">{rows.slice(0,12).map((row)=><div key={row.id} className="flex justify-between border-b border-ink/5 py-2 text-sm"><span>{row.attendance_date}</span><span className="capitalize text-steel">{row.status}</span></div>)}</div></div>; }
+function StudentFees({ records }: { records: FeeRecord[] }) { const total=(record:FeeRecord)=>record.admission_fee+record.tuition_fee+record.examination_fee+record.transport_fee+record.other_charges; return <div className="space-y-3">{records.length ? records.map((record)=>{ const paid=record.payments.reduce((sum,payment)=>sum+payment.amount,0); return <div key={record.id} className="rounded-lg border p-4"><div className="flex justify-between"><div><p className="font-semibold">Due {record.due_date}</p><p className="text-xs text-steel">{record.academic_session}</p></div><p className="font-semibold">₹{(total(record)-paid).toLocaleString()} due</p></div><div className="mt-3 flex gap-4 text-xs text-steel"><span>Total ₹{total(record).toLocaleString()}</span><span>Paid ₹{paid.toLocaleString()}</span><span>{paid === 0 ? "Unpaid" : paid < total(record) ? "Partially paid" : "Paid"}</span></div></div>}) : <p className="py-6 text-sm text-steel">No fee records are available for this student.</p>}</div>; }
+function FeeManagementPage({ students, classes }: { students: Student[]; classes: SchoolClass[] }) { const saveStructure=useServerFn(saveFeeStructure); const generateRecords=useServerFn(generateClassFeeRecords); const pay=useServerFn(recordFeePayment); const [classId,setClassId]=useState(""); const [session,setSession]=useState("2026–2027"); const [dueDate,setDueDate]=useState(new Date().toISOString().slice(0,10)); const [amounts,setAmounts]=useState({admissionFee:"0",tuitionFeeMonthly:"0",examinationFee:"0",transportFeeMonthly:"0",otherCharges:"0",dueDay:"10"}); const [message,setMessage]=useState(""); const [studentId,setStudentId]=useState(""); const [records,setRecords]=useState<FeeRecord[]>([]); const loadFees=useServerFn(getStudentFeeSummary); const recordPayment=async (record:FeeRecord) => { const raw=window.prompt("Payment amount"); if(!raw) return; const amount=Number(raw); if(!Number.isFinite(amount)||amount<=0) {setMessage("Enter a valid payment amount.");return;} try {const result=await pay({data:{feeRecordId:record.id,amount,paymentDate:new Date().toISOString().slice(0,10),paymentMethod:"cash",referenceNumber:null}}); setMessage(`Payment recorded. Receipt ${result.receiptNumber}.`); if(studentId) setRecords(await loadFees({data:{id:studentId}}) as FeeRecord[]);}catch(error){setMessage(error instanceof Error?error.message:"Could not record payment.");} }; const downloadExcel=async()=>{const XLSX=await import("xlsx"); const rows=records.map(record=>({Student:students.find(student=>student.id===studentId)?.full_name ?? "",Due:record.due_date,Total:record.admission_fee+record.tuition_fee+record.examination_fee+record.transport_fee+record.other_charges,Paid:record.payments.reduce((sum,payment)=>sum+payment.amount,0)})); const workbook=XLSX.utils.book_new();XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(rows),"Fees");XLSX.writeFile(workbook,"fee-report.xlsx");}; return <div className="space-y-5"><section className="surface p-5"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-steel">Fee management</p><h2 className="mt-1 font-serif text-3xl">Class fee plans</h2><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={classId} onChange={e=>setClassId(e.target.value)}><option value="">Choose class</option>{classes.map(c=><option key={c.id} value={c.id}>{c.grade} · {c.name}</option>)}</select><Input value={session} onChange={e=>setSession(e.target.value)} placeholder="Academic session" />{Object.entries(amounts).map(([key,value])=><Input key={key} type="number" min="0" value={value} aria-label={key} onChange={e=>setAmounts(current=>({...current,[key]:e.target.value}))} placeholder={key.replace(/([A-Z])/g," $1")} />)}</div><div className="mt-4 flex flex-wrap gap-3"><Button onClick={()=>void (async()=>{try{await saveStructure({data:{classId,academicSession:session,admissionFee:Number(amounts.admissionFee),tuitionFeeMonthly:Number(amounts.tuitionFeeMonthly),examinationFee:Number(amounts.examinationFee),transportFeeMonthly:Number(amounts.transportFeeMonthly),otherCharges:Number(amounts.otherCharges),dueDay:Number(amounts.dueDay)}});setMessage("Fee plan saved.");}catch(error){setMessage(error instanceof Error?error.message:"Could not save fee plan.");}})()}>Save fee plan</Button><Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="max-w-44"/><Button variant="outline" onClick={()=>void (async()=>{try{const result=await generateRecords({data:{classId,academicSession:session,dueDate}});setMessage(`${result.created} student fee records generated.`);}catch(error){setMessage(error instanceof Error?error.message:"Could not generate fee records.");}})()}>Generate records</Button></div></section><section className="surface p-5"><div className="flex flex-col gap-3 sm:flex-row"><select className="h-10 flex-1 rounded-md border bg-background px-3 text-sm" value={studentId} onChange={async e=>{setStudentId(e.target.value);setRecords(e.target.value?await loadFees({data:{id:e.target.value}}) as FeeRecord[]:[]);}}><option value="">Choose a student for payments</option>{students.map(s=><option key={s.id} value={s.id}>{s.full_name} · {s.admission_number}</option>)}</select>{records.length>0&&<Button variant="outline" onClick={()=>void downloadExcel()}><Download className="size-4"/> Excel</Button>}</div><div className="mt-5 space-y-3">{records.map(record=><div key={record.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><StudentFees records={[record]}/><Button size="sm" onClick={()=>void recordPayment(record)}><Receipt className="size-4"/> Record payment</Button></div></div>)}</div>{message&&<p role="status" className="mt-4 text-sm text-steel">{message}</p>}</section></div>; }
+
 function TeachersPage({
   teachers,
   refresh,
