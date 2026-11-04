@@ -320,8 +320,9 @@ export const importStudentRecords = createServerFn({ method: "POST" })
       .select("admission_number")
       .in("admission_number", admissionNumbers);
     if (existingError) throw new Error(existingError.message);
-    if (existingStudents?.length) {
-      throw new Error(`Admission number already exists: ${existingStudents[0].admission_number}. Existing records were not changed.`);
+    const existingAdmission = existingStudents?.[0]?.admission_number;
+    if (existingAdmission) {
+      throw new Error(`Admission number already exists: ${existingAdmission}. Existing records were not changed.`);
     }
 
     const payload = data.students.map((student) => ({
