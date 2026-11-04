@@ -58,6 +58,10 @@ const studentProfileInput = z.object({
   emergencyContactNumber: z.string().trim().max(32).nullable(),
   enrollmentStatus: studentStatus,
 });
+const studentImportRowInput = studentProfileInput.omit({ id: true });
+const studentImportInput = z.object({
+  students: z.array(studentImportRowInput).min(1).max(500),
+});
 const feeStructureInput = z.object({
   classId: z.string().uuid(),
   academicSession: z.string().trim().min(4).max(40),
@@ -283,6 +287,74 @@ export const saveStudentProfile = createServerFn({ method: "POST" })
       : await supabaseAdmin.from("students").insert(payload).select("id").single();
     if (result.error || !result.data) throw new Error(result.error?.message ?? "Could not save the student.");
     return { id: result.data.id };
+  });
+
+export const importStudentRecords = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => studentImportInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const admissionNumbers = data.students.map((student) => student.admissionNumber);
+    const duplicateAdmissions = admissionNumbers.filter(
+      (value, index) => admissionNumbers.indexOf(value) !== index,
+    );
+    if (duplicateAdmissions.length) {
+      throw new Error(`Duplicate admission number in the file: ${duplicateAdmissions[0]}.`);
+    }
+
+    const classIds = [...new Set(data.students.flatMap((student) => student.classId ? [student.classId] : []))];
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (classIds.length) {
+      const { data: foundClasses, error: classError } = await supabaseAdmin
+        .from("classes")
+        .select("id")
+        .in("id", classIds);
+      if (classError) throw new Error(classError.message);
+      if ((foundClasses ?? []).length !== classIds.length) {
+        throw new Error("One or more selected classes are no longer available.");
+      }
+    }
+
+    const { data: existingStudents, error: existingError } = await supabaseAdmin
+      .from("students")
+      .select("admission_number")
+      .in("admission_number", admissionNumbers);
+    if (existingError) throw new Error(existingError.message);
+    const existingAdmission = existingStudents?.[0]?.admission_number;
+    if (existingAdmission) {
+      throw new Error(`Admission number already exists: ${existingAdmission}. Existing records were not changed.`);
+    }
+
+    const payload = data.students.map((student) => ({
+      full_name: student.fullName,
+      admission_number: student.admissionNumber,
+      roll_number: student.rollNumber,
+      class_id: student.classId,
+      date_of_birth: student.dateOfBirth,
+      gender: student.gender,
+      admission_date: student.admissionDate,
+      father_name: student.fatherName,
+      mother_name: student.motherName,
+      guardian_name: student.guardianName,
+      primary_mobile: student.primaryMobile,
+      alternate_mobile: student.alternateMobile,
+      address_village: student.addressVillage,
+      address_post_office: student.addressPostOffice,
+      address_district: student.addressDistrict,
+      address_state: student.addressState,
+      address_pin_code: student.addressPinCode,
+      guardian_email: student.guardianEmail,
+      photo_path: student.photoPath,
+      previous_school_name: student.previousSchoolName,
+      emergency_contact_number: student.emergencyContactNumber,
+      enrollment_status: student.enrollmentStatus,
+    }));
+    const { error: insertError } = await supabaseAdmin.from("students").insert(payload);
+    if (insertError) {
+      if (insertError.code === "23505") throw new Error("A student with the same admission number or class roll number already exists. No records were imported.");
+      throw new Error(insertError.message);
+    }
+    return { imported: payload.length };
   });
 
 export const saveFeeStructure = createServerFn({ method: "POST" })
