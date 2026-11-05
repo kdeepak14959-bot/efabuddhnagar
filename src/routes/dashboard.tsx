@@ -1725,7 +1725,7 @@ function StudentsPage({ role, students, classes, refresh }: { role: Role; studen
   };
   const readImportFile = async (file?: File) => { if (!file) return; if (!file.name.toLowerCase().endsWith(".csv") || file.size > 1024 * 1024) { setImportMessage("Choose a CSV file smaller than 1 MB."); return; } try { const [headers, ...rows] = parseCsv(await file.text()); if (!headers?.length || !rows.length || rows.length > 500) throw new Error("Use a CSV with a header row and 1 to 500 student rows."); const mapping = studentImportFields.reduce((result, field) => { const header = headers.find((item) => field.aliases.includes(normalizeCsvHeader(item))); if (header) result[field.value] = header; return result; }, {} as Record<StudentImportField, string>); setImportHeaders(headers); setImportRows(rows); setColumnMap(mapping); setImportPreview([]); setImportMessage(`${rows.length} rows loaded. Confirm the column mapping, then preview.`); } catch (error) { setImportMessage(error instanceof Error ? error.message : "The CSV could not be read."); } };
   const downloadRejectedRows = () => {
-    const rejectedRows = importPreview.flatMap((preview, index) => preview.errors.length ? [[...importRows[index], preview.sourceRow, preview.errors.join("; ")]] : []);
+    const rejectedRows = importPreview.flatMap((preview, index) => preview.errors.length ? [[...(importRows[index] ?? []), preview.sourceRow, preview.errors.join("; ")]] : []);
     if (!rejectedRows.length) return;
     downloadCsv("student-import-rejected-rows.csv", [[...importHeaders, "Source row", "Validation errors"], ...rejectedRows]);
     setImportMessage(`${rejectedRows.length} rejected row${rejectedRows.length === 1 ? "" : "s"} downloaded with validation errors.`);
