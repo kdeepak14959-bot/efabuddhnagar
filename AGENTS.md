@@ -20,3 +20,4 @@
 - Student CSV imports are create-only, Principal-validated server operations; uploaded rows are previewed client-side but re-validated server-side to protect existing records.
 - Rejected student CSV rows are exported only in the Principal import workspace, preserving the original columns alongside source-row and validation-error details for correction and re-import.
 - Attendance uses a shared status set including Vacation, so registers, reports, exports, and Principal summaries remain consistent.
+- Principal attendance summaries compare Vacation records by class over the selected date range, including each class’s attendance share.
