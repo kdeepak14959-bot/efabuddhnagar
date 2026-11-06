@@ -109,21 +109,21 @@ type Notice = { id: string; title: string; body: string; published_at: string };
 type AttendanceRecord = {
   id: string;
   student_id?: string;
-  status: "present" | "absent" | "late";
+  status: "present" | "absent" | "late" | "vacation";
   attendance_date: string;
 };
 type AttendanceReportRow = {
   id: string;
   attendanceDate: string;
-  status: "present" | "absent" | "late";
+  status: "present" | "absent" | "late" | "vacation";
   studentName: string;
   admissionNumber: string;
   rollNumber: number | null;
   className: string;
 };
 type AttendanceSummary = {
-  daily: { date: string; present: number; late: number; absent: number }[];
-  classes: { className: string; present: number; late: number; absent: number }[];
+  daily: { date: string; present: number; late: number; absent: number; vacation: number }[];
+  classes: { className: string; present: number; late: number; absent: number; vacation: number }[];
 };
 type Teacher = { id: string; full_name: string };
 type SchoolSettings = {
@@ -620,7 +620,7 @@ function Notices({ notices }: { notices: Notice[] }) {
   );
 }
 function Attendance({ attendance }: { attendance: AttendanceRecord[] }) {
-  const statusCounts = ["present", "late", "absent"].map((status) => [
+  const statusCounts = ["present", "late", "absent", "vacation"].map((status) => [
     status,
     attendance.filter((record) => record.status === status).length,
   ]);
@@ -636,7 +636,7 @@ function Attendance({ attendance }: { attendance: AttendanceRecord[] }) {
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-ink/5">
               <div
-                className={`h-full rounded-full ${status === "present" ? "bg-leaf" : status === "late" ? "bg-clay" : "bg-ink/40"}`}
+                className={`h-full rounded-full ${status === "present" ? "bg-leaf" : status === "late" ? "bg-clay" : status === "vacation" ? "bg-primary/60" : "bg-ink/40"}`}
                 style={{
                   width: `${attendance.length ? (Number(count) / attendance.length) * 100 : 0}%`,
                 }}
@@ -1043,8 +1043,8 @@ function AttendanceRegister({
                       <p className="mt-0.5 truncate text-xs text-steel">Admission: {student.admission_number}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1" role="group" aria-label={`Attendance status for ${student.full_name}`}>
-                    {(["present", "late", "absent"] as const).map((value) => (
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1 sm:grid-cols-4" role="group" aria-label={`Attendance status for ${student.full_name}`}>
+                    {(["present", "late", "absent", "vacation"] as const).map((value) => (
                       <Button
                         key={value}
                         type="button"
@@ -1159,13 +1159,15 @@ function AttendanceSummaryPanel({
       present: current.present + item.present,
       late: current.late + item.late,
       absent: current.absent + item.absent,
+      vacation: current.vacation + item.vacation,
     }),
-    { present: 0, late: 0, absent: 0 },
+    { present: 0, late: 0, absent: 0, vacation: 0 },
   );
   const cards = [
     ["Present", totals.present, "text-emerald-700"],
     ["Late", totals.late, "text-amber-700"],
     ["Absent", totals.absent, "text-rose-700"],
+    ["Vacation", totals.vacation, "text-primary"],
   ] as const;
   return (
     <section className="space-y-4">
@@ -1178,7 +1180,7 @@ function AttendanceSummaryPanel({
           {loading ? "Refreshing…" : "Refresh summary"}
         </Button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([label, value, color]) => (
           <div key={label} className="surface p-4">
             <p className="text-xs font-medium text-steel">{label}</p>
@@ -1201,6 +1203,7 @@ function AttendanceSummaryPanel({
                   <Line type="monotone" dataKey="present" name="Present" stroke="var(--chart-1)" strokeWidth={2} />
                   <Line type="monotone" dataKey="late" name="Late" stroke="var(--chart-3)" strokeWidth={2} />
                   <Line type="monotone" dataKey="absent" name="Absent" stroke="var(--destructive)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="vacation" name="Vacation" stroke="var(--primary)" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <p className="pt-24 text-center text-sm text-steel">No saved attendance falls within this date range.</p>}
@@ -1220,6 +1223,7 @@ function AttendanceSummaryPanel({
                   <Bar dataKey="present" name="Present" fill="var(--chart-1)" />
                   <Bar dataKey="late" name="Late" fill="var(--chart-3)" />
                   <Bar dataKey="absent" name="Absent" fill="var(--destructive)" />
+                  <Bar dataKey="vacation" name="Vacation" fill="var(--primary)" />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="pt-24 text-center text-sm text-steel">No class totals are available yet.</p>}

@@ -31,7 +31,7 @@ const principalPasswordResetInput = z.object({
   password: z.string().min(12).max(128),
 });
 
-const attendanceStatus = z.enum(["present", "late", "absent"]);
+const attendanceStatus = z.enum(["present", "late", "absent", "vacation"]);
 const studentStatus = z.enum(["active", "inactive", "transferred"]);
 const studentProfileInput = z.object({
   id: z.string().uuid().optional(),
@@ -546,8 +546,8 @@ export const getAttendanceSummary = createServerFn({ method: "POST" })
     const { data: records, error } = await query;
     if (error) throw new Error(error.message);
 
-    const daily = new Map<string, { date: string; present: number; late: number; absent: number }>();
-    const byClass = new Map<string, { className: string; present: number; late: number; absent: number }>();
+    const daily = new Map<string, { date: string; present: number; late: number; absent: number; vacation: number }>();
+    const byClass = new Map<string, { className: string; present: number; late: number; absent: number; vacation: number }>();
     for (const record of records ?? []) {
       const student = record.students;
       const schoolClass = Array.isArray(student?.classes) ? student.classes[0] : student?.classes;
@@ -557,12 +557,14 @@ export const getAttendanceSummary = createServerFn({ method: "POST" })
         present: 0,
         late: 0,
         absent: 0,
+        vacation: 0,
       };
       const classItem = byClass.get(schoolClass.id) ?? {
         className: `${schoolClass.grade} · ${schoolClass.name}`,
         present: 0,
         late: 0,
         absent: 0,
+        vacation: 0,
       };
       dailyItem[record.status] += 1;
       classItem[record.status] += 1;
