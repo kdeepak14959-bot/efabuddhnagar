@@ -50,6 +50,13 @@
       "when": 1793548835515,
       "tag": "0006_secure_student_photo_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793986555029,
+      "tag": "0007_add_vacation_attendance_status",
+      "breakpoints": true
     }
   ]
 }
