@@ -1169,6 +1169,7 @@ function AttendanceSummaryPanel({
     ["Absent", totals.absent, "text-rose-700"],
     ["Vacation", totals.vacation, "text-primary"],
   ] as const;
+  const vacationByClass = [...summary.classes].sort((a, b) => b.vacation - a.vacation || a.className.localeCompare(b.className));
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -1230,6 +1231,24 @@ function AttendanceSummaryPanel({
           </div>
         </section>
       </div>
+      <section className="surface overflow-hidden">
+        <div className="border-b border-ink/5 p-5">
+          <h4 className="text-sm font-semibold">Vacation comparison by class</h4>
+          <p className="mt-1 text-xs text-steel">Vacation-marked student records across the selected date range.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[460px] text-left text-sm">
+            <thead className="bg-secondary text-xs text-steel"><tr><th className="px-5 py-3 font-medium">Class</th><th className="px-5 py-3 font-medium">Vacation records</th><th className="px-5 py-3 font-medium">Share of attendance</th></tr></thead>
+            <tbody className="divide-y divide-ink/5">
+              {vacationByClass.length ? vacationByClass.map((schoolClass) => {
+                const total = schoolClass.present + schoolClass.late + schoolClass.absent + schoolClass.vacation;
+                const share = total ? Math.round((schoolClass.vacation / total) * 100) : 0;
+                return <tr key={schoolClass.className}><td className="px-5 py-3 font-medium">{schoolClass.className}</td><td className="px-5 py-3">{schoolClass.vacation}</td><td className="px-5 py-3">{share}%</td></tr>;
+              }) : <tr><td colSpan={3} className="px-5 py-8 text-center text-steel">No saved attendance falls within this date range.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
   );
 }
