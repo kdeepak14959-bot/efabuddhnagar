@@ -6,3 +6,4 @@
 - [x] Upgrade Students into full profiles and fee management.
 - [x] Add Principal-only CSV student import with mapping, validation, and preview.
 - [x] Add Principal-only rejected-row CSV download with validation errors.
+- [x] Add Vacation as an attendance status across registers, reports, exports, and summaries.
