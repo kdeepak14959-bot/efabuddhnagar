@@ -915,6 +915,21 @@ function AttendanceRegister({
           })),
         },
       });
+      const statusTotals = classStudents.reduce(
+        (totals, student) => {
+          totals[statuses[student.id] ?? "present"] += 1;
+          return totals;
+        },
+        { present: 0, late: 0, absent: 0, vacation: 0 },
+      );
+      window.__lovableEvents?.track?.("project.attendance_register_saved", {
+        attendance_date: attendanceDate,
+        class_size: classStudents.length,
+        present_count: statusTotals.present,
+        late_count: statusTotals.late,
+        absent_count: statusTotals.absent,
+        vacation_count: statusTotals.vacation,
+      });
       setMessage(`${result.recorded} attendance records saved for ${selectedClass?.name ?? "this class"}. Existing records were updated, not duplicated.`);
       await refresh();
     } catch (error) {
