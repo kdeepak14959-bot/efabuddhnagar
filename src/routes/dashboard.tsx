@@ -1180,7 +1180,7 @@ function AttendanceSummaryPanel({
           {loading ? "Refreshing…" : "Refresh summary"}
         </Button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([label, value, color]) => (
           <div key={label} className="surface p-4">
             <p className="text-xs font-medium text-steel">{label}</p>
@@ -1203,6 +1203,7 @@ function AttendanceSummaryPanel({
                   <Line type="monotone" dataKey="present" name="Present" stroke="var(--chart-1)" strokeWidth={2} />
                   <Line type="monotone" dataKey="late" name="Late" stroke="var(--chart-3)" strokeWidth={2} />
                   <Line type="monotone" dataKey="absent" name="Absent" stroke="var(--destructive)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="vacation" name="Vacation" stroke="var(--primary)" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <p className="pt-24 text-center text-sm text-steel">No saved attendance falls within this date range.</p>}
@@ -1222,6 +1223,7 @@ function AttendanceSummaryPanel({
                   <Bar dataKey="present" name="Present" fill="var(--chart-1)" />
                   <Bar dataKey="late" name="Late" fill="var(--chart-3)" />
                   <Bar dataKey="absent" name="Absent" fill="var(--destructive)" />
+                  <Bar dataKey="vacation" name="Vacation" fill="var(--primary)" />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="pt-24 text-center text-sm text-steel">No class totals are available yet.</p>}
