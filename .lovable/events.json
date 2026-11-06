@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "events": {
+    "project.attendance_register_saved": {
+      "event_schema_version": 1,
+      "description": "An attendance register was successfully saved for a class and date.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "attendance_date",
+          "class_size",
+          "present_count",
+          "late_count",
+          "absent_count",
+          "vacation_count"
+        ],
+        "properties": {
+          "attendance_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "class_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "present_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "late_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "absent_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "vacation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          }
+        }
+      }
+    }
+  }
+}
