@@ -57,6 +57,13 @@
       "when": 1793986555029,
       "tag": "0007_add_vacation_attendance_status",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794243224860,
+      "tag": "0008_add_principal_vacation_management",
+      "breakpoints": true
     }
   ]
 }

@@ -341,6 +341,36 @@ export type Database = {
         }
         Relationships: []
       }
+      school_vacations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          reason: string | null
+          title: string
+          updated_at: string
+          vacation_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          reason?: string | null
+          title: string
+          updated_at?: string
+          vacation_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          reason?: string | null
+          title?: string
+          updated_at?: string
+          vacation_date?: string
+        }
+        Relationships: []
+      }
       student_fee_records: {
         Row: {
           academic_session: string
@@ -591,6 +621,10 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_assigned_teacher: { Args: { class_uuid: string }; Returns: boolean }
+      is_school_non_working_day: {
+        Args: { check_date: string }
+        Returns: boolean
+      }
       owns_student: { Args: { student_uuid: string }; Returns: boolean }
     }
     Enums: {
