@@ -5,6 +5,7 @@ type LovableErrorOptions = {
 };
 
 type LovableEvents = {
+  track?: (eventName: string, properties?: Record<string, unknown>) => void;
   captureException?: (
     error: unknown,
     context?: Record<string, unknown>,
