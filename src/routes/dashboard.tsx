@@ -54,6 +54,9 @@ import {
   saveStudentProfile,
   importStudentRecords,
   getAttendanceSummary,
+  createSchoolVacations,
+  deleteSchoolVacation,
+  updateSchoolVacation,
   updateTeacherAccount,
 } from "@/lib/school-admin.functions";
 import { getPublicSchoolBranding, saveSchoolSettings } from "@/lib/school-settings.functions";
@@ -122,9 +125,10 @@ type AttendanceReportRow = {
   className: string;
 };
 type AttendanceSummary = {
-  daily: { date: string; present: number; late: number; absent: number; vacation: number }[];
-  classes: { className: string; present: number; late: number; absent: number; vacation: number }[];
+  daily: { date: string; present: number; late: number; absent: number }[];
+  classes: { className: string; present: number; late: number; absent: number }[];
 };
+type SchoolVacation = { id: string; vacation_date: string; title: string; reason: string | null };
 type Teacher = { id: string; full_name: string };
 type SchoolSettings = {
   id: string;
@@ -183,6 +187,7 @@ function Dashboard() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [vacations, setVacations] = useState<SchoolVacation[]>([]);
   const [teacherCount, setTeacherCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState("");
   const [branding, setBranding] = useState<SchoolBranding>(defaultSchoolBranding);
@@ -197,6 +202,7 @@ function Dashboard() {
             [GraduationCap, "Teachers"],
             [School, "Classes"],
             [ClipboardCheck, "Attendance"],
+            [CalendarDays, "Vacations"],
             [Megaphone, "Notices"],
             [CalendarDays, "Timetable"],
             [Settings, "School settings"],
@@ -207,6 +213,7 @@ function Dashboard() {
               [School, "My classes"],
               [Users, "Students"],
               [ClipboardCheck, "Attendance"],
+              [CalendarDays, "Vacations"],
               [CalendarDays, "Timetable"],
               [Megaphone, "Notices"],
             ]
@@ -274,6 +281,7 @@ function Dashboard() {
       entryResult,
       teacherResult,
       teacherProfiles,
+      vacationResult,
     ] = await Promise.all([
       classQuery,
       supabase
@@ -296,6 +304,9 @@ function Dashboard() {
         : Promise.resolve({ count: 0 }),
       actualRole === "admin"
         ? supabase.from("user_roles").select("user_id,profiles(id,full_name)").eq("role", "teacher")
+        : Promise.resolve({ data: [] }),
+      actualRole === "admin" || actualRole === "teacher"
+        ? supabase.from("school_vacations").select("id,vacation_date,title,reason").order("vacation_date")
         : Promise.resolve({ data: [] }),
     ]);
     const classRows = classResult.data ?? [];
@@ -321,6 +332,7 @@ function Dashboard() {
       ),
     );
     setEntries((entryResult.data ?? []) as TimetableEntry[]);
+    setVacations((vacationResult.data ?? []) as SchoolVacation[]);
   };
   useEffect(() => {
     async function load() {
@@ -428,6 +440,7 @@ function Dashboard() {
                 entries={entries}
                 notices={notices}
                 attendance={attendance}
+                vacations={vacations}
                 classes={classes}
                 teacherCount={teacherCount}
               />
@@ -528,6 +541,7 @@ function Overview({
   attendance,
   classes,
   teacherCount,
+  vacations,
 }: {
   role: Role;
   students: Student[];
@@ -536,6 +550,7 @@ function Overview({
   attendance: AttendanceRecord[];
   classes: SchoolClass[];
   teacherCount: number;
+  vacations: SchoolVacation[];
 }) {
   const presentRate = attendance.length
     ? Math.round(
@@ -585,7 +600,7 @@ function Overview({
       </section>
       <section className="grid gap-4 lg:grid-cols-3">
         <Notices notices={notices} />
-        <Attendance attendance={attendance} />
+        <Attendance attendance={attendance} vacations={vacations} />
         <Timetable entries={entries} />
       </section>
       {role !== "parent" && <StudentList students={students} />}
@@ -619,8 +634,8 @@ function Notices({ notices }: { notices: Notice[] }) {
     </section>
   );
 }
-function Attendance({ attendance }: { attendance: AttendanceRecord[] }) {
-  const statusCounts = ["present", "late", "absent", "vacation"].map((status) => [
+function Attendance({ attendance, vacations = [] }: { attendance: AttendanceRecord[]; vacations?: SchoolVacation[] }) {
+  const statusCounts = ["present", "late", "absent"].map((status) => [
     status,
     attendance.filter((record) => record.status === status).length,
   ]);
@@ -636,7 +651,7 @@ function Attendance({ attendance }: { attendance: AttendanceRecord[] }) {
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-ink/5">
               <div
-                className={`h-full rounded-full ${status === "present" ? "bg-leaf" : status === "late" ? "bg-clay" : status === "vacation" ? "bg-primary/60" : "bg-ink/40"}`}
+                className={`h-full rounded-full ${status === "present" ? "bg-leaf" : status === "late" ? "bg-clay" : "bg-ink/40"}`}
                 style={{
                   width: `${attendance.length ? (Number(count) / attendance.length) * 100 : 0}%`,
                 }}
@@ -645,6 +660,11 @@ function Attendance({ attendance }: { attendance: AttendanceRecord[] }) {
           </div>
         ))}
       </div>
+      {vacations.length > 0 && (
+        <p className="mt-5 border-t border-ink/5 pt-4 text-xs text-steel">
+          Next vacation: {vacations[0].vacation_date} · {vacations[0].title}
+        </p>
+      )}
     </section>
   );
 }
@@ -731,6 +751,7 @@ function SectionView({
   entries,
   notices,
   attendance,
+  vacations,
   currentUserId,
   refresh,
 }: {
@@ -742,6 +763,7 @@ function SectionView({
   entries: TimetableEntry[];
   notices: Notice[];
   attendance: AttendanceRecord[];
+  vacations: SchoolVacation[];
   currentUserId: string;
   refresh: () => Promise<void>;
 }) {
@@ -752,7 +774,7 @@ function SectionView({
   if (section === "Notices") return <Notices notices={notices} />;
   if (section === "Attendance")
     return role === "parent" ? (
-      <Attendance attendance={attendance} />
+      <Attendance attendance={attendance} vacations={vacations} />
     ) : (
       <AttendanceRegister
         role={role}
@@ -760,8 +782,11 @@ function SectionView({
         students={students}
         currentUserId={currentUserId}
         refresh={refresh}
+        vacations={vacations}
       />
     );
+  if (section === "Vacations" && role !== "parent")
+    return <VacationCalendar role={role} vacations={vacations} refresh={refresh} />;
   if (section === "Timetable")
     return <TimetablePage role={role} classes={classes} entries={entries} refresh={refresh} />;
   if (section === "Teachers") return <TeachersPage teachers={teachers} refresh={refresh} />;
@@ -784,12 +809,14 @@ function AttendanceRegister({
   students,
   currentUserId,
   refresh,
+  vacations,
 }: {
   role: Exclude<Role, "parent">;
   classes: SchoolClass[];
   students: Student[];
   currentUserId: string;
   refresh: () => Promise<void>;
+  vacations: SchoolVacation[];
 }) {
   const saveAttendance = useServerFn(saveClassAttendance);
   const loadAttendanceReport = useServerFn(getAttendanceReport);
@@ -799,7 +826,7 @@ function AttendanceRegister({
   const [reportClassId, setReportClassId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [statuses, setStatuses] = useState<Record<string, AttendanceRecord["status"]>>({});
+  const [statuses, setStatuses] = useState<Record<string, "present" | "late" | "absent">>({});
   const [studentSearch, setStudentSearch] = useState("");
   const [reportRows, setReportRows] = useState<AttendanceReportRow[]>([]);
   const [message, setMessage] = useState("");
@@ -808,6 +835,9 @@ function AttendanceRegister({
   const [summary, setSummary] = useState<AttendanceSummary>({ daily: [], classes: [] });
   const [summaryLoading, setSummaryLoading] = useState(false);
   const selectedClass = classes.find((schoolClass) => schoolClass.id === classId);
+  const selectedVacation = vacations.find((vacation) => vacation.vacation_date === attendanceDate);
+  const isSunday = attendanceDate ? new Date(`${attendanceDate}T00:00:00Z`).getUTCDay() === 0 : false;
+  const isNonWorkingDay = Boolean(selectedVacation) || isSunday;
   const classStudents = useMemo(
     () => students
       .filter((student) => student.class_id === classId)
@@ -835,10 +865,10 @@ function AttendanceRegister({
       .eq("attendance_date", attendanceDate)
       .then(({ data, error }) => {
         if (!active || error) return;
-        const nextStatuses: Record<string, AttendanceRecord["status"]> = {};
+        const nextStatuses: Record<string, "present" | "late" | "absent"> = {};
         for (const student of classStudents) nextStatuses[student.id] = "present";
         for (const record of data ?? []) {
-          if (nextStatuses[record.student_id]) nextStatuses[record.student_id] = record.status;
+          if (nextStatuses[record.student_id] && record.status !== "vacation") nextStatuses[record.student_id] = record.status;
         }
         setStatuses(nextStatuses);
       });
@@ -898,6 +928,10 @@ function AttendanceRegister({
     setMessage("");
   };
   const save = async () => {
+    if (isNonWorkingDay) {
+      setMessage(selectedVacation ? `${selectedVacation.title}: attendance is disabled for this school vacation.` : "Attendance is disabled on Sundays.");
+      return;
+    }
     if (!classId || !classStudents.length) {
       setMessage("Choose a class with enrolled students.");
       return;
@@ -920,7 +954,7 @@ function AttendanceRegister({
           totals[statuses[student.id] ?? "present"] += 1;
           return totals;
         },
-        { present: 0, late: 0, absent: 0, vacation: 0 },
+        { present: 0, late: 0, absent: 0 },
       );
       window.__lovableEvents?.track?.("project.attendance_register_saved", {
         attendance_date: attendanceDate,
@@ -928,7 +962,6 @@ function AttendanceRegister({
         present_count: statusTotals.present,
         late_count: statusTotals.late,
         absent_count: statusTotals.absent,
-        vacation_count: statusTotals.vacation,
       });
       setMessage(`${result.recorded} attendance records saved for ${selectedClass?.name ?? "this class"}. Existing records were updated, not duplicated.`);
       await refresh();
@@ -993,11 +1026,16 @@ function AttendanceRegister({
             {role === "admin" ? "Record attendance for any class." : "Record attendance for your assigned classes."}
           </p>
         </div>
-        <Button onClick={save} disabled={saving || !classStudents.length} className="h-11 w-full shrink-0 px-4 shadow-sm sm:w-auto sm:px-5">
+        <Button onClick={save} disabled={saving || !classStudents.length || isNonWorkingDay} className="h-11 w-full shrink-0 px-4 shadow-sm sm:w-auto sm:px-5">
           <Check className="size-4" />
           {saving ? "Saving…" : "Save attendance"}
         </Button>
       </div>
+      {isNonWorkingDay && (
+        <div role="status" className="border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-ink">
+          {selectedVacation ? <><strong>{selectedVacation.title}</strong>{selectedVacation.reason ? ` — ${selectedVacation.reason}` : ""}. Attendance is disabled.</> : <>Sunday is a non-working day. Attendance is disabled.</>}
+        </div>
+      )}
       <div className="surface grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
         <label className="text-xs font-medium">
           Class
@@ -1059,7 +1097,7 @@ function AttendanceRegister({
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1 sm:grid-cols-4" role="group" aria-label={`Attendance status for ${student.full_name}`}>
-                    {(["present", "late", "absent", "vacation"] as const).map((value) => (
+                    {(["present", "late", "absent"] as const).map((value) => (
                       <Button
                         key={value}
                         type="button"
@@ -1067,6 +1105,7 @@ function AttendanceRegister({
                         variant={status === value ? "default" : "ghost"}
                         className={`h-10 min-w-0 px-2 text-xs capitalize sm:min-w-20 sm:text-sm ${status === value ? "shadow-sm" : ""}`}
                         aria-pressed={status === value}
+                        disabled={isNonWorkingDay}
                         onClick={() => setStatuses((current) => ({ ...current, [student.id]: value }))}
                       >
                         {value}
@@ -1085,7 +1124,7 @@ function AttendanceRegister({
         )}
       </section>
       <div className="sticky bottom-3 z-10 sm:hidden">
-        <Button onClick={save} disabled={saving || !classStudents.length} className="h-12 w-full shadow-lg">
+        <Button onClick={save} disabled={saving || !classStudents.length || isNonWorkingDay} className="h-12 w-full shadow-lg">
           <Check className="size-4" />
           {saving ? "Saving…" : "Save attendance"}
         </Button>
@@ -1174,17 +1213,14 @@ function AttendanceSummaryPanel({
       present: current.present + item.present,
       late: current.late + item.late,
       absent: current.absent + item.absent,
-      vacation: current.vacation + item.vacation,
     }),
-    { present: 0, late: 0, absent: 0, vacation: 0 },
+    { present: 0, late: 0, absent: 0 },
   );
   const cards = [
     ["Present", totals.present, "text-emerald-700"],
     ["Late", totals.late, "text-amber-700"],
     ["Absent", totals.absent, "text-rose-700"],
-    ["Vacation", totals.vacation, "text-primary"],
   ] as const;
-  const vacationByClass = [...summary.classes].sort((a, b) => b.vacation - a.vacation || a.className.localeCompare(b.className));
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -1196,7 +1232,7 @@ function AttendanceSummaryPanel({
           {loading ? "Refreshing…" : "Refresh summary"}
         </Button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         {cards.map(([label, value, color]) => (
           <div key={label} className="surface p-4">
             <p className="text-xs font-medium text-steel">{label}</p>
@@ -1219,7 +1255,6 @@ function AttendanceSummaryPanel({
                   <Line type="monotone" dataKey="present" name="Present" stroke="var(--chart-1)" strokeWidth={2} />
                   <Line type="monotone" dataKey="late" name="Late" stroke="var(--chart-3)" strokeWidth={2} />
                   <Line type="monotone" dataKey="absent" name="Absent" stroke="var(--destructive)" strokeWidth={2} />
-                  <Line type="monotone" dataKey="vacation" name="Vacation" stroke="var(--primary)" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <p className="pt-24 text-center text-sm text-steel">No saved attendance falls within this date range.</p>}
@@ -1239,33 +1274,82 @@ function AttendanceSummaryPanel({
                   <Bar dataKey="present" name="Present" fill="var(--chart-1)" />
                   <Bar dataKey="late" name="Late" fill="var(--chart-3)" />
                   <Bar dataKey="absent" name="Absent" fill="var(--destructive)" />
-                  <Bar dataKey="vacation" name="Vacation" fill="var(--primary)" />
                 </BarChart>
               </ResponsiveContainer>
             ) : <p className="pt-24 text-center text-sm text-steel">No class totals are available yet.</p>}
           </div>
         </section>
       </div>
-      <section className="surface overflow-hidden">
-        <div className="border-b border-ink/5 p-5">
-          <h4 className="text-sm font-semibold">Vacation comparison by class</h4>
-          <p className="mt-1 text-xs text-steel">Vacation-marked student records across the selected date range.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[460px] text-left text-sm">
-            <thead className="bg-secondary text-xs text-steel"><tr><th className="px-5 py-3 font-medium">Class</th><th className="px-5 py-3 font-medium">Vacation records</th><th className="px-5 py-3 font-medium">Share of attendance</th></tr></thead>
-            <tbody className="divide-y divide-ink/5">
-              {vacationByClass.length ? vacationByClass.map((schoolClass) => {
-                const total = schoolClass.present + schoolClass.late + schoolClass.absent + schoolClass.vacation;
-                const share = total ? Math.round((schoolClass.vacation / total) * 100) : 0;
-                return <tr key={schoolClass.className}><td className="px-5 py-3 font-medium">{schoolClass.className}</td><td className="px-5 py-3">{schoolClass.vacation}</td><td className="px-5 py-3">{share}%</td></tr>;
-              }) : <tr><td colSpan={3} className="px-5 py-8 text-center text-steel">No saved attendance falls within this date range.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </section>
   );
+}
+function VacationCalendar({ role, vacations, refresh }: { role: Exclude<Role, "parent">; vacations: SchoolVacation[]; refresh: () => Promise<void> }) {
+  const createVacations = useServerFn(createSchoolVacations);
+  const updateVacation = useServerFn(updateSchoolVacation);
+  const deleteVacation = useServerFn(deleteSchoolVacation);
+  const [mode, setMode] = useState<"single" | "multiple" | "range">("single");
+  const [date, setDate] = useState("");
+  const [multipleDates, setMultipleDates] = useState<string[]>([]);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
+  const [title, setTitle] = useState("");
+  const [reason, setReason] = useState("");
+  const [editing, setEditing] = useState<SchoolVacation | null>(null);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const rangeDates = () => {
+    if (!rangeStart || !rangeEnd || rangeStart > rangeEnd) return [];
+    const dates: string[] = [];
+    const cursor = new Date(`${rangeStart}T00:00:00Z`);
+    const last = new Date(`${rangeEnd}T00:00:00Z`);
+    while (cursor <= last && dates.length <= 366) {
+      if (cursor.getUTCDay() !== 0) dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return dates;
+  };
+  const datesForSubmit = mode === "single" ? (date ? [date] : []) : mode === "multiple" ? multipleDates : rangeDates();
+  const submit = async () => {
+    if (!title.trim() || !datesForSubmit.length) { setMessage("Add a title and select at least one weekday."); return; }
+    setSaving(true); setMessage("");
+    try {
+      const result = await createVacations({ data: { dates: datesForSubmit, title: title.trim(), reason: reason.trim() || null } });
+      setMessage(`${result.created} vacation date${result.created === 1 ? "" : "s"} added.`);
+      setDate(""); setMultipleDates([]); setRangeStart(""); setRangeEnd(""); setTitle(""); setReason("");
+      await refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save vacation dates."); } finally { setSaving(false); }
+  };
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSaving(true); setMessage("");
+    try {
+      await updateVacation({ data: { id: editing.id, date: editing.vacation_date, title: editing.title, reason: editing.reason } });
+      setEditing(null); setMessage("Vacation updated."); await refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update the vacation."); } finally { setSaving(false); }
+  };
+  const remove = async (id: string) => {
+    if (!window.confirm("Remove this vacation date?")) return;
+    try { await deleteVacation({ data: { id } }); setMessage("Vacation removed."); await refresh(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not remove the vacation."); }
+  };
+  return <section className="space-y-5">
+    <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-leaf">School calendar</p><h2 className="mt-1 font-serif text-3xl">School vacations</h2><p className="mt-1 text-sm text-steel">Declared dates appear for teachers and cannot be used for attendance.</p></div>
+    {role === "admin" && <section className="surface p-5">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Vacation date selection">
+        {(["single", "multiple", "range"] as const).map((item) => <Button key={item} type="button" size="sm" variant={mode === item ? "default" : "outline"} onClick={() => setMode(item)}>{item === "single" ? "Single date" : item === "multiple" ? "Multiple dates" : "Date range"}</Button>)}
+      </div>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {mode === "single" && <label className="text-xs font-medium">Vacation date<Input className="mt-1.5" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>}
+        {mode === "multiple" && <label className="text-xs font-medium">Vacation dates<Input className="mt-1.5" type="date" value={date} onChange={(event) => { if (event.target.value && !multipleDates.includes(event.target.value)) setMultipleDates((current) => [...current, event.target.value].sort()); setDate(""); }} /><p className="mt-2 text-xs text-steel">{multipleDates.length ? multipleDates.join(", ") : "Choose each date individually."}</p></label>}
+        {mode === "range" && <><label className="text-xs font-medium">From date<Input className="mt-1.5" type="date" value={rangeStart} onChange={(event) => setRangeStart(event.target.value)} /></label><label className="text-xs font-medium">To date<Input className="mt-1.5" type="date" value={rangeEnd} onChange={(event) => setRangeEnd(event.target.value)} /></label></>}
+        <label className="text-xs font-medium">Title<Input className="mt-1.5" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Winter break" /></label>
+        <label className="text-xs font-medium">Reason<Textarea className="mt-1.5" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Optional details" /></label>
+      </div>
+      {mode === "range" && rangeStart && rangeEnd && <p className="mt-3 text-xs text-steel">{datesForSubmit.length} weekday{datesForSubmit.length === 1 ? "" : "s"} will be added. Sundays are excluded.</p>}
+      <div className="mt-5 flex flex-wrap items-center gap-3"><Button onClick={() => void submit()} disabled={saving}>{saving ? "Saving…" : "Add vacation"}</Button>{message && <p role="status" className="text-sm text-steel">{message}</p>}</div>
+    </section>}
+    <section className="surface overflow-hidden"><div className="border-b border-ink/5 p-5"><h3 className="text-sm font-semibold">Declared vacations</h3><p className="mt-1 text-xs text-steel">Sundays are automatically non-working days.</p></div><div className="divide-y divide-ink/5">{vacations.length ? vacations.map((vacation) => editing?.id === vacation.id ? <div key={vacation.id} className="grid gap-3 p-4 sm:grid-cols-4"><Input type="date" value={editing.vacation_date} onChange={(event) => setEditing({ ...editing, vacation_date: event.target.value })}/><Input value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })}/><Input value={editing.reason ?? ""} onChange={(event) => setEditing({ ...editing, reason: event.target.value || null })}/><div className="flex gap-2"><Button size="sm" onClick={() => void saveEdit()} disabled={saving}>Save</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancel</Button></div></div> : <div key={vacation.id} className="flex flex-wrap items-center justify-between gap-3 p-5"><div><p className="text-sm font-semibold">{vacation.vacation_date} · {vacation.title}</p>{vacation.reason && <p className="mt-1 text-xs text-steel">{vacation.reason}</p>}</div>{role === "admin" && <div className="flex gap-1"><Button size="icon" variant="ghost" aria-label={`Edit ${vacation.title}`} title="Edit vacation" onClick={() => setEditing(vacation)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" aria-label={`Delete ${vacation.title}`} title="Delete vacation" onClick={() => void remove(vacation.id)}><Trash2 className="size-4" /></Button></div>}</div>) : <p className="p-8 text-center text-sm text-steel">No vacation dates have been declared.</p>}</div></section>
+  </section>;
 }
 function SchoolSettingsPage({ principalId }: { principalId: string }) {
   const saveSettings = useServerFn(saveSchoolSettings);

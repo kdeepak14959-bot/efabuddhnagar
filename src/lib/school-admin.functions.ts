@@ -31,7 +31,7 @@ const principalPasswordResetInput = z.object({
   password: z.string().min(12).max(128),
 });
 
-const attendanceStatus = z.enum(["present", "late", "absent", "vacation"]);
+const attendanceStatus = z.enum(["present", "late", "absent"]);
 const studentStatus = z.enum(["active", "inactive", "transferred"]);
 const studentProfileInput = z.object({
   id: z.string().uuid().optional(),
@@ -109,6 +109,19 @@ const attendanceSummaryInput = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
+const vacationDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const createVacationInput = z.object({
+  dates: z.array(vacationDate).min(1).max(366),
+  title: z.string().trim().min(2).max(120),
+  reason: z.string().trim().max(500).nullable(),
+});
+const updateVacationInput = z.object({
+  id: z.string().uuid(),
+  date: vacationDate,
+  title: z.string().trim().min(2).max(120),
+  reason: z.string().trim().max(500).nullable(),
+});
+const deleteVacationInput = z.object({ id: z.string().uuid() });
 
 export async function requirePrincipal(context: {
   supabase: SupabaseClient<Database>;
@@ -456,6 +469,15 @@ export const saveClassAttendance = createServerFn({ method: "POST" })
       throw new Response("Forbidden", { status: 403 });
     }
 
+    const { data: nonWorkingDay, error: nonWorkingDayError } = await context.supabase.rpc(
+      "is_school_non_working_day",
+      { check_date: data.attendanceDate },
+    );
+    if (nonWorkingDayError) throw new Error(nonWorkingDayError.message);
+    if (nonWorkingDay) {
+      throw new Error("Attendance cannot be recorded on a Sunday or declared school vacation.");
+    }
+
     const studentIds = data.records.map((record) => record.studentId);
     const { data: classStudents, error: studentsError } = await context.supabase
       .from("students")
@@ -478,6 +500,59 @@ export const saveClassAttendance = createServerFn({ method: "POST" })
     );
     if (saveError) throw new Error(saveError.message);
     return { ok: true, recorded: data.records.length };
+  });
+
+export const createSchoolVacations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => createVacationInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const uniqueDates = [...new Set(data.dates)].sort();
+    if (uniqueDates.some((date) => new Date(`${date}T00:00:00Z`).getUTCDay() === 0)) {
+      throw new Error("Sundays are already non-working days and cannot be added as school vacations.");
+    }
+    const { data: existing, error: existingError } = await context.supabase
+      .from("school_vacations")
+      .select("vacation_date")
+      .in("vacation_date", uniqueDates);
+    if (existingError) throw new Error(existingError.message);
+    if (existing?.length) throw new Error(`A vacation already exists on ${existing[0].vacation_date}.`);
+    const { error } = await context.supabase.from("school_vacations").insert(
+      uniqueDates.map((vacationDate) => ({
+        vacation_date: vacationDate,
+        title: data.title,
+        reason: data.reason || null,
+        created_by: context.userId,
+      })),
+    );
+    if (error) throw new Error(error.message);
+    return { created: uniqueDates.length };
+  });
+
+export const updateSchoolVacation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => updateVacationInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    if (new Date(`${data.date}T00:00:00Z`).getUTCDay() === 0) {
+      throw new Error("Sundays are already non-working days and cannot be added as school vacations.");
+    }
+    const { error } = await context.supabase
+      .from("school_vacations")
+      .update({ vacation_date: data.date, title: data.title, reason: data.reason || null })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteSchoolVacation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => deleteVacationInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await requirePrincipal(context);
+    const { error } = await context.supabase.from("school_vacations").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const getAttendanceReport = createServerFn({ method: "POST" })

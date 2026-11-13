@@ -19,6 +19,6 @@
 - Student information and fee management use additive profile columns plus fee structures, student fee records, and payment records; all write operations run through Principal-validated server functions to preserve student and attendance relationships.
 - Student CSV imports are create-only, Principal-validated server operations; uploaded rows are previewed client-side but re-validated server-side to protect existing records.
 - Rejected student CSV rows are exported only in the Principal import workspace, preserving the original columns alongside source-row and validation-error details for correction and re-import.
-- Attendance uses a shared status set including Vacation, so registers, reports, exports, and Principal summaries remain consistent.
-- Principal attendance summaries compare Vacation records by class over the selected date range, including each class’s attendance share.
-- Attendance register saves emit privacy-safe analytics aggregates for daily saved-register tracking, including Vacation totals.
+- School vacations are date-level records managed only by Principals; they block attendance writes on vacation dates and are visible to Teachers.
+- Attendance uses only Present, Late, and Absent; Sundays and declared school vacations are excluded from operational attendance days.
+- Attendance register saves emit privacy-safe analytics aggregates for daily saved-register tracking.

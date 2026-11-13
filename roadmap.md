@@ -9,3 +9,4 @@
 - [x] Add Vacation as an attendance status across registers, reports, exports, and summaries.
 - [x] Add Principal vacation comparison by class and date range.
 - [x] Track saved attendance registers with aggregate status counts, including Vacation.
+- [x] Add Principal-controlled school vacation management with calendar visibility and attendance-day blocking.
