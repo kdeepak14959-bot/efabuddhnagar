@@ -64,6 +64,13 @@
       "when": 1794243224860,
       "tag": "0008_add_principal_vacation_management",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794846030701,
+      "tag": "0009_secure_school_settings_and_branding",
+      "breakpoints": true
     }
   ]
 }

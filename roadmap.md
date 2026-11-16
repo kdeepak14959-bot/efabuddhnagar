@@ -10,3 +10,4 @@
 - [x] Add Principal vacation comparison by class and date range.
 - [x] Track saved attendance registers with aggregate status counts, including Vacation.
 - [x] Add Principal-controlled school vacation management with calendar visibility and attendance-day blocking.
+- [x] Review selected security scan findings and apply safe fixes.
