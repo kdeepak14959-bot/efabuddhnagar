@@ -516,7 +516,8 @@ export const createSchoolVacations = createServerFn({ method: "POST" })
       .select("vacation_date")
       .in("vacation_date", uniqueDates);
     if (existingError) throw new Error(existingError.message);
-    if (existing?.length) throw new Error(`A vacation already exists on ${existing[0].vacation_date}.`);
+    const existingVacation = existing?.[0];
+    if (existingVacation) throw new Error(`A vacation already exists on ${existingVacation.vacation_date}.`);
     const { error } = await context.supabase.from("school_vacations").insert(
       uniqueDates.map((vacationDate) => ({
         vacation_date: vacationDate,
@@ -621,8 +622,8 @@ export const getAttendanceSummary = createServerFn({ method: "POST" })
     const { data: records, error } = await query;
     if (error) throw new Error(error.message);
 
-    const daily = new Map<string, { date: string; present: number; late: number; absent: number; vacation: number }>();
-    const byClass = new Map<string, { className: string; present: number; late: number; absent: number; vacation: number }>();
+    const daily = new Map<string, { date: string; present: number; late: number; absent: number }>();
+    const byClass = new Map<string, { className: string; present: number; late: number; absent: number }>();
     for (const record of records ?? []) {
       const student = record.students;
       const schoolClass = Array.isArray(student?.classes) ? student.classes[0] : student?.classes;
@@ -632,15 +633,14 @@ export const getAttendanceSummary = createServerFn({ method: "POST" })
         present: 0,
         late: 0,
         absent: 0,
-        vacation: 0,
       };
       const classItem = byClass.get(schoolClass.id) ?? {
         className: `${schoolClass.grade} · ${schoolClass.name}`,
         present: 0,
         late: 0,
         absent: 0,
-        vacation: 0,
       };
+      if (record.status === "vacation") continue;
       dailyItem[record.status] += 1;
       classItem[record.status] += 1;
       daily.set(record.attendance_date, dailyItem);

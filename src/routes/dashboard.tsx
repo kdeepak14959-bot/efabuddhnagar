@@ -454,6 +454,7 @@ function Dashboard() {
                 entries={entries}
                 notices={notices}
                 attendance={attendance}
+                vacations={vacations}
                 currentUserId={currentUserId}
                 refresh={() => refresh(role, currentUserId)}
               />
@@ -662,7 +663,7 @@ function Attendance({ attendance, vacations = [] }: { attendance: AttendanceReco
       </div>
       {vacations.length > 0 && (
         <p className="mt-5 border-t border-ink/5 pt-4 text-xs text-steel">
-          Next vacation: {vacations[0].vacation_date} · {vacations[0].title}
+          Next vacation: {vacations[0]?.vacation_date} · {vacations[0]?.title}
         </p>
       )}
     </section>
